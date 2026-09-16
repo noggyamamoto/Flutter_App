@@ -1,14 +1,15 @@
 import 'package:flutter_app/features/songs/data/datasources/songs_remote_datasource.dart';
-import 'package:flutter_app/features/songs/data/models/songs_model.dart';
+import 'package:flutter_app/features/songs/domain/entities/song.dart';
 import 'package:flutter_app/features/songs/domain/repositories/songs_repository.dart';
 
 class SongsRepositoryImpl implements SongsRepository {
-  final SongsRemoteDataSource dataSource;
+  final SongsRemoteDataSource _dataSource;
 
-  SongsRepositoryImpl(this.dataSource);
+  const SongsRepositoryImpl(this._dataSource);
 
   @override
-  Future<List<SongsModel>> getSongs() {
-    return dataSource.getSongs();
+  Future<List<Song>> getSongs() async {
+    final songsModel = await _dataSource.getSongs();
+    return songsModel.map((model) => model.toEntity()).toList();
   }
 }

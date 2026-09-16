@@ -1,3 +1,5 @@
+import 'package:flutter_app/features/songs/domain/entities/song.dart';
+
 class SongsModel {
   final String id;
   final String titulo;
@@ -7,12 +9,13 @@ class SongsModel {
   final String arquivoMidi;
 
   const SongsModel({
-    required this.id, 
-    required this.titulo, 
-    required this.compositor, 
-    required this.nivelDificuldade, 
+    required this.id,
+    required this.titulo,
+    required this.compositor,
+    required this.nivelDificuldade,
     required this.bpmPadrao,
-    required this.arquivoMidi,});
+    required this.arquivoMidi,
+  });
 
   factory SongsModel.fromMap(Map<String, dynamic> map) {
     return SongsModel(
@@ -34,5 +37,16 @@ class SongsModel {
       'bpmPadrao': bpmPadrao,
       'arquivoMidi': arquivoMidi,
     };
+  }
+
+  Song toEntity() {
+    return Song(
+      id: id,
+      titulo: titulo,
+      compositor: compositor,
+      nivelDificuldade: nivelDificuldade,
+      bpmPadrao: bpmPadrao,
+      arquivoMidi: arquivoMidi,
+    );
   }
 }

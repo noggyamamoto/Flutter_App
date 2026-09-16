@@ -1,13 +1,13 @@
-import 'package:flutter_app/features/songs/data/models/songs_model.dart';
+import 'package:flutter_app/features/songs/domain/entities/song.dart';
 
 import '../repositories/songs_repository.dart';
 
 class GetSongs {
-  final SongsRepository repository;
+  final SongsRepository _repository;
 
-  GetSongs(this.repository);
+  const GetSongs(this._repository);
 
-  Future<List<SongsModel>> call() {
-    return repository.getSongs();
+  Future<List<Song>> call() async {
+    return await _repository.getSongs();
   }
 }
