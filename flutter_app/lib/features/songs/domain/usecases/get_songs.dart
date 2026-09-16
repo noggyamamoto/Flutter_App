@@ -1,3 +1,5 @@
+import 'package:flutter_app/features/songs/data/models/songs_model.dart';
+
 import '../repositories/songs_repository.dart';
 
 class GetSongs {
@@ -5,7 +7,7 @@ class GetSongs {
 
   GetSongs(this.repository);
 
-  Future<List<Map<String, dynamic>>> call() {
+  Future<List<SongsModel>> call() {
     return repository.getSongs();
   }
 }

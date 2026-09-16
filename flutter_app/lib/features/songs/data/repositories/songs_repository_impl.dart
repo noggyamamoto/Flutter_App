@@ -1,4 +1,5 @@
 import 'package:flutter_app/features/songs/data/datasources/songs_remote_datasource.dart';
+import 'package:flutter_app/features/songs/data/models/songs_model.dart';
 import 'package:flutter_app/features/songs/domain/repositories/songs_repository.dart';
 
 class SongsRepositoryImpl implements SongsRepository {
@@ -7,7 +8,7 @@ class SongsRepositoryImpl implements SongsRepository {
   SongsRepositoryImpl(this.dataSource);
 
   @override
-  Future<List<Map<String, dynamic>>> getSongs() {
+  Future<List<SongsModel>> getSongs() {
     return dataSource.getSongs();
   }
 }

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_app/features/songs/data/datasources/songs_remote_datasource.dart';
 import 'package:flutter_app/features/songs/data/datasources/songs_remote_datasource_impl.dart';
+import 'package:flutter_app/features/songs/data/models/songs_model.dart';
 import 'package:flutter_app/features/songs/data/repositories/songs_repository_impl.dart';
 import 'package:flutter_app/features/songs/domain/repositories/songs_repository.dart';
 import 'package:flutter_app/features/songs/domain/usecases/get_songs.dart';
@@ -28,7 +29,7 @@ final getSongsProvider = Provider<GetSongs>((ref) {
   return GetSongs(repository);
 });
 
-final songsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) {
+final songsProvider = FutureProvider<List<SongsModel>>((ref) {
   final getSongs = ref.watch(getSongsProvider);
 
   return getSongs();

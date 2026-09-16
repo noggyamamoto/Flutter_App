@@ -28,8 +28,8 @@ class SongsPage extends ConsumerWidget {
               final song = songs[index];
 
               return ListTile(
-                title: Text(song['titulo']),
-                subtitle: Text(song['compositor']),
+                title: Text(song.titulo),
+                subtitle: Text(song.compositor),
               );
             },
           );
