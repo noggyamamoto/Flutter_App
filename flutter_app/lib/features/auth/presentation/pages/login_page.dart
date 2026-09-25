@@ -67,13 +67,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     // Observa o estado da autenticação.
     final authState = ref.watch(authProvider);
 
-    // Mostra erro quando houver.
+    // Observa mudanças no estado para mostrar erros
+    // e também a mensagem de sucesso do cadastro.
     ref.listen<AuthState>(
       authProvider,
       (previous, next) {
+        // --------------------------------------------------
+        // ERRO
+        // --------------------------------------------------
         if (next.status == AuthStatus.error &&
             next.errorMessage != null) {
-          // Exibe a mensagem de erro em SnackBar vermelho.
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(next.errorMessage!),
@@ -81,9 +84,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             ),
           );
 
-          // Limpa o erro para não exibir novamente
-          // em rebuilds seguintes.
+          // Limpa o erro para não exibir novamente.
           ref.read(authProvider.notifier).clearError();
+        }
+
+        // --------------------------------------------------
+        // SUCESSO (ex.: cadastro concluído)
+        // --------------------------------------------------
+        if (next.successMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(next.successMessage!),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Limpa a mensagem para não exibir novamente.
+          ref.read(authProvider.notifier).clearSuccess();
         }
       },
     );
