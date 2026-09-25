@@ -38,8 +38,7 @@ final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
 // FIRESTORE PROVIDER
 // ==========================================================
 
-final firestoreProvider =
-    Provider<FirebaseFirestore>((ref) {
+final firestoreProvider = Provider<FirebaseFirestore>((ref) {
   // Retorna a instância do Cloud Firestore.
   return FirebaseFirestore.instance;
 });
@@ -69,12 +68,9 @@ final authDataSourceProvider =
 // REPOSITORY PROVIDER
 // ==========================================================
 
-final authRepositoryProvider =
-    Provider<AuthRepository>((ref) {
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
   // Recupera o DataSource.
-  final dataSource = ref.watch(
-    authDataSourceProvider,
-  );
+  final dataSource = ref.watch(authDataSourceProvider);
 
   // Cria o Repository.
   return AuthRepositoryImpl(dataSource);
@@ -87,9 +83,7 @@ final authRepositoryProvider =
 
 final loginProvider = Provider<Login>((ref) {
   // Recupera o Repository.
-  final repository = ref.watch(
-    authRepositoryProvider,
-  );
+  final repository = ref.watch(authRepositoryProvider);
 
   // Cria o UseCase.
   return Login(repository);
@@ -100,12 +94,9 @@ final loginProvider = Provider<Login>((ref) {
 // USE CASE: CADASTRO
 // ==========================================================
 
-final registerProvider =
-    Provider<Register>((ref) {
+final registerProvider = Provider<Register>((ref) {
   // Recupera o Repository.
-  final repository = ref.watch(
-    authRepositoryProvider,
-  );
+  final repository = ref.watch(authRepositoryProvider);
 
   // Cria o UseCase.
   return Register(repository);
@@ -118,9 +109,7 @@ final registerProvider =
 
 final logoutProvider = Provider<Logout>((ref) {
   // Recupera o Repository.
-  final repository = ref.watch(
-    authRepositoryProvider,
-  );
+  final repository = ref.watch(authRepositoryProvider);
 
   // Cria o UseCase.
   return Logout(repository);
@@ -165,13 +154,8 @@ class AuthState {
 
   // Construtor.
   const AuthState({
-    // Estado inicial.
     this.status = AuthStatus.initial,
-
-    // Usuário inicialmente inexistente.
     this.user,
-
-    // Nenhum erro inicialmente.
     this.errorMessage,
   });
 
@@ -181,15 +165,11 @@ class AuthState {
     AppUser? user,
     String? errorMessage,
   }) {
-    // Retorna um novo estado.
     return AuthState(
-      // Mantém ou substitui o status.
       status: status ?? this.status,
-
-      // Mantém ou substitui o usuário.
       user: user ?? this.user,
-
-      // Define a mensagem de erro.
+      // Aqui o errorMessage NÃO usa "?? this.errorMessage"
+      // de propósito: passar null explicitamente limpa o erro.
       errorMessage: errorMessage,
     );
   }
@@ -214,10 +194,8 @@ class AuthNotifier extends Notifier<AuthState> {
 
     // Se existir usuário, considera autenticado.
     if (firebaseUser != null) {
-      // Retorna estado autenticado.
       return AuthState(
         status: AuthStatus.authenticated,
-
         user: AppUser(
           id: firebaseUser.uid,
           nome: firebaseUser.displayName ?? '',
@@ -229,6 +207,26 @@ class AuthNotifier extends Notifier<AuthState> {
     // Caso contrário, o usuário está deslogado.
     return const AuthState(
       status: AuthStatus.unauthenticated,
+    );
+  }
+
+  // ========================================================
+  // LIMPAR ERRO
+  // ========================================================
+
+  /// Limpa a mensagem de erro atual.
+  ///
+  /// Deve ser chamado pelas telas depois de exibir o
+  /// SnackBar com o erro, evitando que a mesma mensagem
+  /// apareça novamente em rebuilds seguintes.
+  void clearError() {
+    // Só faz sentido limpar se houver erro.
+    if (state.errorMessage == null) return;
+
+    // Volta o estado para "não autenticado" sem erro.
+    state = AuthState(
+      status: AuthStatus.unauthenticated,
+      user: state.user,
     );
   }
 
@@ -248,9 +246,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
     try {
       // Recupera o caso de uso.
-      final loginUseCase = ref.read(
-        loginProvider,
-      );
+      final loginUseCase = ref.read(loginProvider);
 
       // Executa o login.
       final user = await loginUseCase(
@@ -267,9 +263,7 @@ class AuthNotifier extends Notifier<AuthState> {
       // Trata erros conhecidos do Firebase.
       state = AuthState(
         status: AuthStatus.error,
-        errorMessage: _getAuthErrorMessage(
-          error.code,
-        ),
+        errorMessage: _getAuthErrorMessage(error.code),
       );
     } catch (error) {
       // Trata erros inesperados.
@@ -297,9 +291,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
     try {
       // Recupera o caso de uso.
-      final registerUseCase = ref.read(
-        registerProvider,
-      );
+      final registerUseCase = ref.read(registerProvider);
 
       // Executa o cadastro.
       final user = await registerUseCase(
@@ -318,9 +310,7 @@ class AuthNotifier extends Notifier<AuthState> {
       // Trata erros do Firebase.
       state = AuthState(
         status: AuthStatus.error,
-        errorMessage: _getAuthErrorMessage(
-          error.code,
-        ),
+        errorMessage: _getAuthErrorMessage(error.code),
       );
     } catch (error) {
       // Trata erros inesperados.
@@ -336,18 +326,38 @@ class AuthNotifier extends Notifier<AuthState> {
   // ========================================================
 
   Future<void> logout() async {
-    // Recupera o caso de uso.
-    final logoutUseCase = ref.read(
-      logoutProvider,
+    // Informa à interface que o logout começou.
+    state = state.copyWith(
+      status: AuthStatus.loading,
+      errorMessage: null,
     );
 
-    // Executa o logout.
-    await logoutUseCase();
+    try {
+      // Recupera o caso de uso.
+      final logoutUseCase = ref.read(logoutProvider);
 
-    // Atualiza o estado.
-    state = const AuthState(
-      status: AuthStatus.unauthenticated,
-    );
+      // Executa o logout.
+      await logoutUseCase();
+
+      // Atualiza o estado.
+      state = const AuthState(
+        status: AuthStatus.unauthenticated,
+      );
+    } on FirebaseAuthException catch (error) {
+      // Trata erros do Firebase durante o logout.
+      state = AuthState(
+        status: AuthStatus.error,
+        user: state.user,
+        errorMessage: _getAuthErrorMessage(error.code),
+      );
+    } catch (error) {
+      // Trata erros inesperados.
+      state = AuthState(
+        status: AuthStatus.error,
+        user: state.user,
+        errorMessage: 'Erro ao encerrar sessão.',
+      );
+    }
   }
 
   // ========================================================
@@ -355,39 +365,52 @@ class AuthNotifier extends Notifier<AuthState> {
   // ========================================================
 
   String _getAuthErrorMessage(String code) {
-    // E-mail já cadastrado.
-    if (code == 'email-already-in-use') {
-      return 'Este e-mail já está cadastrado.';
-    }
+    switch (code) {
+      // E-mail já cadastrado.
+      case 'email-already-in-use':
+        return 'Este e-mail já está cadastrado.';
 
-    // E-mail inválido.
-    if (code == 'invalid-email') {
-      return 'Digite um e-mail válido.';
-    }
+      // E-mail inválido.
+      case 'invalid-email':
+        return 'Digite um e-mail válido.';
 
-    // Senha fraca.
-    if (code == 'weak-password') {
-      return 'A senha é muito fraca.';
-    }
+      // Senha fraca.
+      case 'weak-password':
+        return 'A senha é muito fraca.';
 
-    // Usuário não encontrado.
-    if (code == 'user-not-found') {
-      return 'Usuário não encontrado.';
-    }
+      // Usuário não encontrado.
+      case 'user-not-found':
+        return 'Usuário não encontrado.';
 
-    // Credenciais inválidas.
-    if (code == 'wrong-password' ||
-        code == 'invalid-credential') {
-      return 'E-mail ou senha incorretos.';
-    }
+      // Credenciais inválidas.
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'E-mail ou senha incorretos.';
 
-    // Operação não permitida.
-    if (code == 'operation-not-allowed') {
-      return 'Este método de login não está habilitado.';
-    }
+      // Conta desativada.
+      case 'user-disabled':
+        return 'Esta conta foi desativada.';
 
-    // Erro genérico.
-    return 'Não foi possível realizar a autenticação.';
+      // Muitas tentativas.
+      case 'too-many-requests':
+        return 'Muitas tentativas. Tente novamente mais tarde.';
+
+      // Falha de rede.
+      case 'network-request-failed':
+        return 'Falha de conexão. Verifique sua internet.';
+
+      // Operação não permitida.
+      case 'operation-not-allowed':
+        return 'Este método de login não está habilitado.';
+
+      // Login recente obrigatório.
+      case 'requires-recent-login':
+        return 'Faça login novamente para continuar.';
+
+      // Erro genérico.
+      default:
+        return 'Não foi possível realizar a autenticação.';
+    }
   }
 }
 

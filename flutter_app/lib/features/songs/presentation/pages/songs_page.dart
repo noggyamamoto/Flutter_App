@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_app/features/songs/domain/entities/song.dart';
 import 'package:flutter_app/features/songs/presentation/providers/songs_provider.dart';
 
+import '../../../auth/presentation/pages/user_profile_page.dart';
+
 class SongsPage extends ConsumerWidget {
   const SongsPage({super.key});
 
@@ -56,10 +58,15 @@ class _SongsContent extends StatelessWidget {
         .toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 48, 20, 30),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Cabeçalho com saudação e botão de perfil.
+          const _Header(),
+
+          const SizedBox(height: 24),
+
           const _SearchBar(),
 
           const SizedBox(height: 28),
@@ -106,6 +113,76 @@ class _SongsContent extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ==========================================================
+// CABEÇALHO COM BOTÃO DE PERFIL
+// ==========================================================
+
+class _Header extends StatelessWidget {
+  const _Header();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        // Saudação à esquerda.
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Olá,',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'Pronto para praticar?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Botão de perfil à direita.
+        Material(
+          color: const Color(0xFF232136),
+          shape: const CircleBorder(
+            side: BorderSide(
+              color: Color(0xFF39374A),
+            ),
+          ),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {
+              // Abre a tela de perfil do usuário.
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const UserProfilePage(),
+                ),
+              );
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(10),
+              child: Icon(
+                Icons.person_outline,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -279,82 +356,83 @@ class _SongCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-    padding: const EdgeInsets.only(bottom: 20),
-    child: InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PerformancePage(
-              song: song,
-            ),
-          ),
-        );
-      },
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 103,
-            height: 103,
-            decoration: BoxDecoration(
-              color: const Color(0xFF232136),
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(
-                color: const Color(0xFF39374A),
+      padding: const EdgeInsets.only(bottom: 20),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PerformancePage(
+                song: song,
               ),
             ),
-            child: const Icon(
-              Icons.music_note,
-              color: Colors.white54,
-              size: 35,
-            ),
-          ),
-
-          const SizedBox(width: 11),
-
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.titulo,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 3),
-
-                  Text(
-                    song.compositor,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                    ),
-                  ),
-
-                  const SizedBox(height: 3),
-
-                  Text(
-                    '${song.bpmPadrao} BPM',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
+          );
+        },
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 103,
+              height: 103,
+              decoration: BoxDecoration(
+                color: const Color(0xFF232136),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(
+                  color: const Color(0xFF39374A),
+                ),
+              ),
+              child: const Icon(
+                Icons.music_note,
+                color: Colors.white54,
+                size: 35,
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(width: 11),
+
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.titulo,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 3),
+
+                    Text(
+                      song.compositor,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                      ),
+                    ),
+
+                    const SizedBox(height: 3),
+
+                    Text(
+                      '${song.bpmPadrao} BPM',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 }

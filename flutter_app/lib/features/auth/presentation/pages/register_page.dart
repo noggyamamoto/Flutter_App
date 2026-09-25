@@ -68,37 +68,25 @@ class _RegisterPageState
 
     // Validação do nome.
     if (nome.isEmpty) {
-      _showMessage(
-        'Digite seu nome.',
-      );
-
+      _showMessage('Digite seu nome.');
       return;
     }
 
     // Validação do e-mail.
     if (email.isEmpty) {
-      _showMessage(
-        'Digite seu e-mail.',
-      );
-
+      _showMessage('Digite seu e-mail.');
       return;
     }
 
     // Validação da senha.
     if (senha.isEmpty) {
-      _showMessage(
-        'Digite uma senha.',
-      );
-
+      _showMessage('Digite uma senha.');
       return;
     }
 
     // Confirmação da senha.
     if (senha != confirmarSenha) {
-      _showMessage(
-        'As senhas não coincidem.',
-      );
-
+      _showMessage('As senhas não coincidem.');
       return;
     }
 
@@ -117,6 +105,7 @@ class _RegisterPageState
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
+        backgroundColor: Colors.redAccent,
       ),
     );
   }
@@ -136,6 +125,9 @@ class _RegisterPageState
           _showMessage(
             next.errorMessage!,
           );
+
+          // Limpa o erro para não exibir novamente.
+          ref.read(authProvider.notifier).clearError();
         }
       },
     );

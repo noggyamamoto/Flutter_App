@@ -47,9 +47,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (email.isEmpty || senha.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Preencha e-mail e senha.',
-          ),
+          content: Text('Preencha e-mail e senha.'),
+          backgroundColor: Colors.redAccent,
         ),
       );
 
@@ -74,13 +73,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       (previous, next) {
         if (next.status == AuthStatus.error &&
             next.errorMessage != null) {
+          // Exibe a mensagem de erro em SnackBar vermelho.
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                next.errorMessage!,
-              ),
+              content: Text(next.errorMessage!),
+              backgroundColor: Colors.redAccent,
             ),
           );
+
+          // Limpa o erro para não exibir novamente
+          // em rebuilds seguintes.
+          ref.read(authProvider.notifier).clearError();
         }
       },
     );
@@ -187,8 +190,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       suffixIcon: IconButton(
                         onPressed: () {
                           setState(() {
-                            senhaVisivel =
-                                !senhaVisivel;
+                            senhaVisivel = !senhaVisivel;
                           });
                         },
                         icon: Icon(
