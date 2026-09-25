@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 import 'features/songs/presentation/pages/songs_page.dart';
 
+import 'features/auth/presentation/pages/auth_gate.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -26,7 +28,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const SongsPage(),
+      home: const AuthGate(),
     );
   }
 }
