@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_app/features/performance/presentation/pages/performance_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flutter_app/features/songs/domain/entities/song.dart';
@@ -278,7 +279,18 @@ class _SongCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+    padding: const EdgeInsets.only(bottom: 20),
+    child: InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PerformancePage(
+              song: song,
+            ),
+          ),
+        );
+      },
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -343,6 +355,6 @@ class _SongCard extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 }
