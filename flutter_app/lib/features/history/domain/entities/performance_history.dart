@@ -17,6 +17,13 @@ class PerformanceHistory {
   // Status da execução.
   final String status;
 
+  // Precisão de altura e de ritmo (0 a 100), quando disponíveis.
+  final double? pitchScore;
+  final double? rhythmScore;
+
+  // BPM ao final da execução (pode ter sido reduzido).
+  final int? finalBpm;
+
   const PerformanceHistory({
     required this.executionId,
     required this.songId,
@@ -24,5 +31,8 @@ class PerformanceHistory {
     required this.score,
     required this.bpm,
     required this.status,
+    this.pitchScore,
+    this.rhythmScore,
+    this.finalBpm,
   });
 }

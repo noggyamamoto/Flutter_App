@@ -15,5 +15,16 @@ abstract class HistoryRepository {
     required int bpmInicial,
     required double pontuacaoFinal,
     required String status,
+    double? pontuacaoAltura,
+    double? pontuacaoRitmo,
+    int? bpmFinal,
+    int? notasTocadas,
+    int? notasCorretas,
+  });
+
+  // Músicas tocadas recentemente (mais recentes primeiro).
+  Future<List<String>> getRecentSongIds({
+    required String userId,
+    int limit,
   });
 }

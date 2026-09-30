@@ -145,3 +145,21 @@ final historyProvider =
     songId: params.songId,
   );
 });
+
+
+// ---------------------------------------------------------
+// MÚSICAS TOCADAS RECENTEMENTE
+// ---------------------------------------------------------
+
+final recentSongIdsProvider =
+    FutureProvider.family<List<String>, String>((ref, userId) {
+
+  final repository = ref.watch(
+    historyRepositoryProvider,
+  );
+
+  return repository.getRecentSongIds(
+    userId: userId,
+    limit: 3,
+  );
+});

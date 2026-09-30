@@ -16,5 +16,16 @@ abstract class HistoryRemoteDataSource {
     required int bpmInicial,
     required double pontuacaoFinal,
     required String status,
+    double? pontuacaoAltura,
+    double? pontuacaoRitmo,
+    int? bpmFinal,
+    int? notasTocadas,
+    int? notasCorretas,
+  });
+
+  // IDs das músicas tocadas recentemente pelo usuário.
+  Future<List<String>> getRecentSongIds({
+    required String userId,
+    int limit,
   });
 }

@@ -1,93 +1,69 @@
 import 'package:flutter/material.dart';
 
+import '../../../score/domain/entities/note_comparison.dart';
+import '../../../score/domain/services/score_analyzer.dart';
+import 'feedback_colors.dart';
+import 'score_display.dart';
+
+// Notas executadas na última performance, coloridas sobre a partitura.
 class MusicHistoryWidget
     extends StatelessWidget {
+
+  // Partitura e melodia avaliada.
+  final ScoreStructure? structure;
+
+  // Resultado de cada nota (id -> feedback).
+  final Map<int, NoteFeedback> feedback;
+
   const MusicHistoryWidget({
     super.key,
+    this.structure,
+    this.feedback = const {},
   });
 
   @override
   Widget build(
     BuildContext context,
   ) {
+    final structure = this.structure;
+
     return Container(
-      height: 230,
+      height: 300,
       width: double.infinity,
       padding:
-          const EdgeInsets.all(16),
+          const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius:
             BorderRadius.circular(16),
       ),
-      child: CustomPaint(
-        painter:
-            _MusicHistoryPainter(),
-      ),
+      child: structure == null
+          ? const Center(
+              child: Text(
+                'Nenhuma nota executada.',
+                style: TextStyle(color: Colors.black54),
+              ),
+            )
+          : ScoreDisplay(
+              score: structure.score,
+              // Somente os compassos das frases tocadas.
+              measureIndexes: _playedMeasures(structure),
+              noteColors: FeedbackColors.map(feedback),
+              evaluatedNoteIds: structure.evaluatedNoteIds,
+              zoom: 1.0,
+            ),
     );
   }
-}
 
-class _MusicHistoryPainter
-    extends CustomPainter {
-  @override
-  void paint(
-    Canvas canvas,
-    Size size,
-  ) {
-    final linePaint = Paint()
-      ..color = Colors.black
-      ..strokeWidth = 1.2;
-
-    const spacing = 12.0;
-
-    for (int i = 0; i < 5; i++) {
-      final y =
-          45 + i * spacing;
-
-      canvas.drawLine(
-        Offset(20, y),
-        Offset(
-          size.width - 20,
-          y,
-        ),
-        linePaint,
-      );
-    }
-
-    final notePaint = Paint()
-      ..color = Colors.green
-      ..style =
-          PaintingStyle.fill;
-
-    for (int i = 0; i < 7; i++) {
-      final x =
-          70 + i * 45.0;
-
-      final y =
-          90 -
-          (i % 3) * 12.0;
-
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(
-            x,
-            y,
-          ),
-          width: 16,
-          height: 11,
-        ),
-        notePaint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(
-    covariant
-        _MusicHistoryPainter
-            oldDelegate,
-  ) {
-    return false;
+  List<int> _playedMeasures(ScoreStructure structure) {
+    final phrases = <int>{
+      for (final note in structure.expectedNotes)
+        if (note.scoreNoteIds.any(feedback.containsKey)) note.phraseIndex,
+    };
+    if (phrases.isEmpty) return structure.phrases.first.measureIndexes;
+    return [
+      for (final phrase in structure.phrases)
+        if (phrases.contains(phrase.index)) ...phrase.measureIndexes,
+    ];
   }
 }

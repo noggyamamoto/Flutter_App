@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../songs/presentation/pages/songs_page.dart';
+import '../../../connection/presentation/pages/device_gate.dart';
 
 import '../providers/auth_provider.dart';
 
@@ -59,8 +59,9 @@ class AuthGate extends ConsumerWidget {
 
       case AuthStatus.authenticated:
 
-        // Usuário autenticado pode acessar o aplicativo.
-        return const SongsPage();
+        // Usuário autenticado: conexão com o dispositivo
+        // e, em seguida, o repertório.
+        return const DeviceGate();
 
       // ------------------------------------------------------
       // NÃO AUTENTICADO

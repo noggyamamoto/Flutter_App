@@ -7,10 +7,21 @@ import '../../../history/domain/entities/performance_history.dart';
 import '../../../history/presentation/providers/history_provider.dart';
 import '../../../history/presentation/widgets/performance_history_list.dart';
 
+import '../../../gamification/domain/entities/trophy.dart';
+import '../../../gamification/presentation/pages/gamification_page.dart';
+
+import '../../../score/domain/entities/note_comparison.dart';
+import '../../../score/domain/entities/score_result.dart';
+import '../../../score/domain/services/score_analyzer.dart';
+import '../../../score/presentation/widgets/score_result_widget.dart';
+
 import '../../../songs/domain/entities/song.dart';
 
 import '../widgets/music_history_widget.dart';
+import '../widgets/performance_chart.dart';
 import '../widgets/performance_score_card.dart';
+
+import 'performance_page.dart';
 
 class PerformanceResultPage
     extends ConsumerStatefulWidget {
@@ -24,11 +35,25 @@ class PerformanceResultPage
   // Quantidade de notas executadas.
   final int notesPlayed;
 
+  // Avaliação detalhada (altura, ritmo, frases).
+  final ScoreResult? result;
+
+  // Partitura executada e resultado de cada nota.
+  final ScoreStructure? structure;
+  final Map<int, NoteFeedback> feedback;
+
+  // Troféus conquistados nesta execução.
+  final List<Trophy> newTrophies;
+
   const PerformanceResultPage({
     super.key,
     required this.song,
     required this.precision,
     required this.notesPlayed,
+    this.result,
+    this.structure,
+    this.feedback = const {},
+    this.newTrophies = const [],
   });
 
   @override
@@ -133,6 +158,26 @@ class _PerformanceResultPageState
               ),
 
               const SizedBox(
+                height: 16,
+              ),
+
+              // Precisão de altura e ritmo (RU13).
+              if (widget.result != null)
+                ScoreResultWidget(
+                  result: widget.result!,
+                ),
+
+              // Troféus conquistados agora (RFA10).
+              if (widget.newTrophies.isNotEmpty) ...[
+
+                const SizedBox(
+                  height: 16,
+                ),
+
+                _buildNewTrophies(),
+              ],
+
+              const SizedBox(
                 height: 24,
               ),
 
@@ -160,6 +205,44 @@ class _PerformanceResultPageState
 
               const SizedBox(
                 height: 30,
+              ),
+
+              // Reiniciar a mesma música (RU16).
+              SizedBox(
+
+                width:
+                    double.infinity,
+
+                height: 55,
+
+                child: ElevatedButton.icon(
+
+                  onPressed: () {
+
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PerformancePage(
+                          song: widget.song,
+                        ),
+                      ),
+                    );
+                  },
+
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                  ),
+
+                  icon: const Icon(Icons.replay),
+
+                  label:
+                      const Text('TOCAR NOVAMENTE'),
+                ),
+              ),
+
+              const SizedBox(
+                height: 12,
               ),
 
               // Botão para voltar ao início.
@@ -307,9 +390,12 @@ class _PerformanceResultPageState
           height: 12,
         ),
 
-        // Mantém o widget que representa
-        // as notas da execução atual.
-        const MusicHistoryWidget(),
+        // Notas da execução atual coloridas
+        // sobre a partitura.
+        MusicHistoryWidget(
+          structure: widget.structure,
+          feedback: widget.feedback,
+        ),
 
         const SizedBox(
           height: 12,
@@ -415,12 +501,165 @@ class _PerformanceResultPageState
           // Quando os dados chegam.
           data: (history) {
 
-            return PerformanceHistoryList(
-              history: history,
+            // Gráfico de evolução a partir da
+            // 10ª execução da mesma música (RFA11).
+            const minimum = 10;
+
+            final values = history.reversed
+                .map((h) => h.score)
+                .toList();
+
+            return Column(
+
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
+              children: [
+
+                Container(
+
+                  padding:
+                      const EdgeInsets.all(16),
+
+                  margin: const EdgeInsets.only(
+                    bottom: 16,
+                  ),
+
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF191827),
+                    borderRadius:
+                        BorderRadius.circular(16),
+                  ),
+
+                  child: history.length >= minimum
+                      ? Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Evolução da pontuação',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            PerformanceChart(
+                              values: values,
+                            ),
+                          ],
+                        )
+                      : Text(
+                          'O gráfico de evolução aparece a partir da '
+                          '$minimum.ª execução desta música. '
+                          'Faltam ${minimum - history.length}.',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                ),
+
+                PerformanceHistoryList(
+                  history: history,
+                ),
+              ],
             );
           },
         ),
       ],
+    );
+  }
+
+  // Destaque dos troféus conquistados.
+  Widget _buildNewTrophies() {
+
+    return InkWell(
+
+      borderRadius:
+          BorderRadius.circular(16),
+
+      onTap: () {
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const GamificationPage(),
+          ),
+        );
+      },
+
+      child: Container(
+
+        padding:
+            const EdgeInsets.all(16),
+
+        decoration: BoxDecoration(
+          color: Colors.amber.withValues(alpha: 0.12),
+          borderRadius:
+              BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.amber.withValues(alpha: 0.6),
+          ),
+        ),
+
+        child: Row(
+
+          children: [
+
+            const Icon(
+              Icons.emoji_events,
+              color: Colors.amber,
+              size: 40,
+            ),
+
+            const SizedBox(
+              width: 14,
+            ),
+
+            Expanded(
+
+              child: Column(
+
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+
+                  Text(
+                    widget.newTrophies.length == 1
+                        ? 'Novo troféu conquistado!'
+                        : '${widget.newTrophies.length} novos troféus!',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 4,
+                  ),
+
+                  Text(
+                    widget.newTrophies
+                        .map((t) => t.titulo)
+                        .join(', '),
+                    style: const TextStyle(
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const Icon(
+              Icons.chevron_right,
+              color: Colors.white54,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -21,6 +21,13 @@ class PerformanceHistoryModel {
   // Status da execução.
   final String status;
 
+  // Precisão de altura e de ritmo.
+  final double? pitchScore;
+  final double? rhythmScore;
+
+  // BPM final.
+  final int? finalBpm;
+
   const PerformanceHistoryModel({
     required this.executionId,
     required this.songId,
@@ -28,6 +35,9 @@ class PerformanceHistoryModel {
     required this.score,
     required this.bpm,
     required this.status,
+    this.pitchScore,
+    this.rhythmScore,
+    this.finalBpm,
   });
 
   // Converte os dados vindos do Firestore para o Model.
@@ -61,11 +71,19 @@ class PerformanceHistoryModel {
           0,
 
       // BPM inicial.
-      bpm: map['bpmInicial'] as int? ?? 0,
+      bpm: (map['bpmInicial'] as num?)?.toInt() ?? 0,
 
       // Status.
       status:
           map['status'] as String? ?? '',
+
+      // Detalhes da avaliação (execuções antigas não possuem).
+      pitchScore:
+          (map['pontuacaoAltura'] as num?)?.toDouble(),
+      rhythmScore:
+          (map['pontuacaoRitmo'] as num?)?.toDouble(),
+      finalBpm:
+          (map['bpmFinal'] as num?)?.toInt(),
     );
   }
 
@@ -78,6 +96,9 @@ class PerformanceHistoryModel {
       score: score,
       bpm: bpm,
       status: status,
+      pitchScore: pitchScore,
+      rhythmScore: rhythmScore,
+      finalBpm: finalBpm,
     );
   }
 }

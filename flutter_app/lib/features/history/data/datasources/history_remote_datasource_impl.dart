@@ -72,6 +72,11 @@ class HistoryRemoteDataSourceImpl
     required int bpmInicial,
     required double pontuacaoFinal,
     required String status,
+    double? pontuacaoAltura,
+    double? pontuacaoRitmo,
+    int? bpmFinal,
+    int? notasTocadas,
+    int? notasCorretas,
   }) async {
 
     // Cria um novo documento dentro de execucoes.
@@ -97,9 +102,49 @@ class HistoryRemoteDataSourceImpl
 
       // Estado da execução.
       'status': status,
+
+      // Detalhes da avaliação (RU13).
+      'pontuacaoAltura': ?pontuacaoAltura,
+      'pontuacaoRitmo': ?pontuacaoRitmo,
+      'bpmFinal': ?bpmFinal,
+      'notasTocadas': ?notasTocadas,
+      'notasCorretas': ?notasCorretas,
     });
 
     // Retorna o ID criado pelo Firestore.
     return document.id;
+  }
+
+  @override
+  Future<List<String>> getRecentSongIds({
+    required String userId,
+    int limit = 3,
+  }) async {
+
+    // Busca as execuções do usuário. A ordenação é feita no app para
+    // não exigir um índice composto no Firestore.
+    final snapshot = await firestore
+        .collection('execucoes')
+        .where(
+          'idUsuario',
+          isEqualTo: userId,
+        )
+        .get();
+
+    final executions = snapshot.docs
+        .map((doc) => PerformanceHistoryModel.fromMap({
+              'executionId': doc.id,
+              ...doc.data(),
+            }))
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+
+    // Mantém apenas a primeira ocorrência de cada música.
+    final ids = <String>[];
+    for (final execution in executions) {
+      if (!ids.contains(execution.songId)) ids.add(execution.songId);
+      if (ids.length >= limit) break;
+    }
+    return ids;
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../connection/presentation/providers/connection_provider.dart';
 import '../providers/auth_provider.dart';
 
 // Página que exibe as informações do usuário autenticado
@@ -246,6 +247,10 @@ class UserProfilePage extends ConsumerWidget {
 
     // Se o usuário cancelou, não faz nada.
     if (confirm != true) return;
+
+    // Encerra a comunicação com o dispositivo de forma segura (RU17).
+    await ref.read(connectionProvider.notifier).disconnect();
+    ref.read(connectionProvider.notifier).showConnectionScreen();
 
     // Executa o logout.
     await ref.read(authProvider.notifier).logout();
