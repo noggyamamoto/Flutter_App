@@ -40,6 +40,11 @@ class HistoryRepositoryImpl
     required int bpmInicial,
     required double pontuacaoFinal,
     required String status,
+    double? pontuacaoAltura,
+    double? pontuacaoRitmo,
+    int? bpmFinal,
+    int? notasTocadas,
+    int? notasCorretas,
   }) {
 
     // Delega o salvamento para o DataSource.
@@ -49,6 +54,22 @@ class HistoryRepositoryImpl
       bpmInicial: bpmInicial,
       pontuacaoFinal: pontuacaoFinal,
       status: status,
+      pontuacaoAltura: pontuacaoAltura,
+      pontuacaoRitmo: pontuacaoRitmo,
+      bpmFinal: bpmFinal,
+      notasTocadas: notasTocadas,
+      notasCorretas: notasCorretas,
+    );
+  }
+
+  @override
+  Future<List<String>> getRecentSongIds({
+    required String userId,
+    int limit = 3,
+  }) {
+    return dataSource.getRecentSongIds(
+      userId: userId,
+      limit: limit,
     );
   }
 }

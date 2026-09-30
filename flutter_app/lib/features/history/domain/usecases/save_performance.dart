@@ -16,6 +16,11 @@ class SavePerformance {
     required int bpmInicial,
     required double pontuacaoFinal,
     required String status,
+    double? pontuacaoAltura,
+    double? pontuacaoRitmo,
+    int? bpmFinal,
+    int? notasTocadas,
+    int? notasCorretas,
   }) {
 
     return repository.savePerformance(
@@ -24,6 +29,11 @@ class SavePerformance {
       bpmInicial: bpmInicial,
       pontuacaoFinal: pontuacaoFinal,
       status: status,
+      pontuacaoAltura: pontuacaoAltura,
+      pontuacaoRitmo: pontuacaoRitmo,
+      bpmFinal: bpmFinal,
+      notasTocadas: notasTocadas,
+      notasCorretas: notasCorretas,
     );
   }
 }

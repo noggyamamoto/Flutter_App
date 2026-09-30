@@ -6,6 +6,12 @@ import 'package:flutter_app/features/songs/domain/entities/song.dart';
 import 'package:flutter_app/features/songs/presentation/providers/songs_provider.dart';
 
 import '../../../auth/presentation/pages/user_profile_page.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../configuration/presentation/pages/configuration_page.dart';
+import '../../../connection/presentation/pages/connection_page.dart';
+import '../../../connection/presentation/providers/connection_provider.dart';
+import '../../../gamification/presentation/pages/gamification_page.dart';
+import '../../../history/presentation/providers/history_provider.dart';
 
 class SongsPage extends ConsumerWidget {
   const SongsPage({super.key});
@@ -36,7 +42,7 @@ class SongsPage extends ConsumerWidget {
   }
 }
 
-class _SongsContent extends StatelessWidget {
+class _SongsContent extends StatefulWidget {
   final List<Song> songs;
 
   const _SongsContent({
@@ -44,7 +50,37 @@ class _SongsContent extends StatelessWidget {
   });
 
   @override
+  State<_SongsContent> createState() => _SongsContentState();
+}
+
+class _SongsContentState extends State<_SongsContent> {
+  // Texto digitado na busca.
+  String query = '';
+
+  // Remove acentos para a busca ignorar "é", "ã" etc.
+  String _normalize(String text) {
+    const from = 'áàâãäéèêëíìîïóòôõöúùûüç';
+    const to = 'aaaaaeeeeiiiiooooouuuuc';
+    var result = text.toLowerCase();
+    for (var i = 0; i < from.length; i++) {
+      result = result.replaceAll(from[i], to[i]);
+    }
+    return result;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final term = _normalize(query.trim());
+
+    // Filtra por título ou compositor.
+    final songs = term.isEmpty
+        ? widget.songs
+        : widget.songs
+            .where((song) =>
+                _normalize(song.titulo).contains(term) ||
+                _normalize(song.compositor).contains(term))
+            .toList();
+
     final faceis = songs
         .where((song) => song.nivelDificuldade.toLowerCase() == 'fácil')
         .toList();
@@ -67,7 +103,9 @@ class _SongsContent extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          const _SearchBar(),
+          _SearchBar(
+            onChanged: (value) => setState(() => query = value),
+          ),
 
           const SizedBox(height: 28),
 
@@ -93,7 +131,7 @@ class _SongsContent extends StatelessWidget {
 
           const SizedBox(height: 18),
 
-          _RecentSongs(songs: songs),
+          _RecentSongs(songs: widget.songs),
 
           const SizedBox(height: 22),
 
@@ -121,64 +159,126 @@ class _SongsContent extends StatelessWidget {
 // CABEÇALHO COM BOTÃO DE PERFIL
 // ==========================================================
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   const _Header();
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        // Saudação à esquerda.
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Olá,',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-              ),
-              SizedBox(height: 2),
-              Text(
-                'Pronto para praticar?',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final connection = ref.watch(connectionProvider);
 
-        // Botão de perfil à direita.
-        Material(
-          color: const Color(0xFF232136),
-          shape: const CircleBorder(
-            side: BorderSide(
-              color: Color(0xFF39374A),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            // Saudação à esquerda.
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Olá,',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Pronto para praticar?',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: () {
-              // Abre a tela de perfil do usuário.
-              Navigator.push(
+
+            // Troféus.
+            _CircleButton(
+              icon: Icons.emoji_events_outlined,
+              tooltip: 'Troféus',
+              onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const UserProfilePage(),
+                  builder: (_) => const GamificationPage(),
                 ),
-              );
-            },
-            child: const Padding(
-              padding: EdgeInsets.all(10),
-              child: Icon(
-                Icons.person_outline,
-                color: Colors.white,
-                size: 24,
               ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // Configurações.
+            _CircleButton(
+              icon: Icons.tune,
+              tooltip: 'Configurações',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ConfigurationPage(),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 8),
+
+            // Botão de perfil à direita.
+            _CircleButton(
+              icon: Icons.person_outline,
+              tooltip: 'Meu perfil',
+              onTap: () {
+                // Abre a tela de perfil do usuário.
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const UserProfilePage(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        // Status do dispositivo embarcado.
+        InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ConnectionPage(pushed: true),
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF232136),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFF39374A)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  connection.isConnected
+                      ? (connection.isSimulated ? Icons.smart_toy_outlined : Icons.sensors)
+                      : Icons.sensors_off,
+                  color: connection.isConnected ? Colors.greenAccent : Colors.redAccent,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  connection.isConnected
+                      ? connection.device!.name
+                      : 'Nenhum dispositivo conectado',
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, color: Colors.white54, size: 18),
+              ],
             ),
           ),
         ),
@@ -187,8 +287,51 @@ class _Header extends StatelessWidget {
   }
 }
 
+class _CircleButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _CircleButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: const Color(0xFF232136),
+        shape: const CircleBorder(
+          side: BorderSide(
+            color: Color(0xFF39374A),
+          ),
+        ),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SearchBar extends StatelessWidget {
-  const _SearchBar();
+  final ValueChanged<String> onChanged;
+
+  const _SearchBar({
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -203,14 +346,23 @@ class _SearchBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Padding(
-              padding: EdgeInsets.only(left: 20),
-              child: Text(
-                'Procurar',
-                style: TextStyle(
+              padding: const EdgeInsets.only(left: 20),
+              child: TextField(
+                onChanged: onChanged,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
+                ),
+                cursorColor: const Color(0xFF9B6DDA),
+                decoration: const InputDecoration(
+                  hintText: 'Procurar',
+                  hintStyle: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                  border: InputBorder.none,
                 ),
               ),
             ),
@@ -235,7 +387,7 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-class _RecentSongs extends StatelessWidget {
+class _RecentSongs extends ConsumerWidget {
   final List<Song> songs;
 
   const _RecentSongs({
@@ -243,12 +395,22 @@ class _RecentSongs extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final recentSongs = songs.take(3).toList();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
+
+    // Músicas das execuções mais recentes do usuário.
+    final recentIds = user == null
+        ? const <String>[]
+        : ref.watch(recentSongIdsProvider(user.id)).value ?? const <String>[];
+
+    final recentSongs = [
+      for (final id in recentIds)
+        ...songs.where((song) => song.id == id),
+    ];
 
     if (recentSongs.isEmpty) {
       return const Text(
-        'Nenhuma música encontrada.',
+        'Nenhuma música tocada ainda.',
         style: TextStyle(color: Colors.white70),
       );
     }
@@ -258,11 +420,18 @@ class _RecentSongs extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: recentSongs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 20),
+        separatorBuilder: (_, _) => const SizedBox(width: 20),
         itemBuilder: (context, index) {
           final song = recentSongs[index];
 
-          return SizedBox(
+          return GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PerformancePage(song: song),
+              ),
+            ),
+            child: SizedBox(
             width: 103,
             child: Column(
               children: [
@@ -295,6 +464,7 @@ class _RecentSongs extends StatelessWidget {
                 ),
               ],
             ),
+          ),
           );
         },
       ),

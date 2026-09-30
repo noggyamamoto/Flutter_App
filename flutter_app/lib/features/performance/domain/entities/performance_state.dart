@@ -1,4 +1,6 @@
-import 'midi_score.dart';
+import '../../../score/domain/entities/note_comparison.dart';
+import '../../../score/domain/entities/score_result.dart';
+import '../../../score/domain/services/score_analyzer.dart';
 
 enum PerformanceStatus {
   initial,
@@ -6,41 +8,137 @@ enum PerformanceStatus {
   ready,
   countdown,
   running,
+
+  // Frase abaixo de 50%: execução travada aguardando o aluno (RFA08).
+  phraseFailed,
+
   finished,
   error,
 }
 
 class PerformanceState {
   final PerformanceStatus status;
-  final MidiScore? score;
+
+  // Partitura, frases e melodia avaliada.
+  final ScoreStructure? structure;
+
+  // Frase exibida na tela.
+  final int viewPhrase;
+
+  // Andamento atual e andamento inicial (semínimas por minuto).
+  final int bpm;
+  final int initialBpm;
+
+  // Feedback de cada nota da partitura (id -> resultado) – RFA06.
+  final Map<int, NoteFeedback> feedback;
+
+  // Posição atual da execução (semínimas).
+  final double? cursorBeat;
+
+  // Contagem de entrada: tempo (1..n) e compasso (1..2) atuais.
+  final int countInBeat;
+  final int countInBar;
+
+  // Metrônomo visual: tempo atual no compasso e contador de batidas.
+  final int beatInBar;
+  final int beatCount;
+
+  // Precisão parcial (0 a 100) e notas tocadas.
   final double precision;
   final int notesPlayed;
+
+  // Tempo desde o início da música.
   final Duration elapsed;
+
+  // Última frase avaliada.
+  final PhraseResult? lastPhrase;
+
+  // Sugestão de redução de BPM (RFA09) ou null.
+  final int? suggestedBpm;
+
+  // Mensagem temporária exibida na tela.
+  final String? message;
+
+  // Última nota tocada e seu resultado (exibição ao vivo).
+  final int? lastPlayedMidi;
+  final NoteFeedback? lastFeedback;
+
+  // Resultado final.
+  final ScoreResult? result;
+
   final String? errorMessage;
 
   const PerformanceState({
     required this.status,
-    this.score,
+    this.structure,
+    this.viewPhrase = 0,
+    this.bpm = 0,
+    this.initialBpm = 0,
+    this.feedback = const {},
+    this.cursorBeat,
+    this.countInBeat = 0,
+    this.countInBar = 0,
+    this.beatInBar = 0,
+    this.beatCount = 0,
     this.precision = 0,
     this.notesPlayed = 0,
     this.elapsed = Duration.zero,
+    this.lastPhrase,
+    this.suggestedBpm,
+    this.message,
+    this.lastPlayedMidi,
+    this.lastFeedback,
+    this.result,
     this.errorMessage,
   });
 
   PerformanceState copyWith({
     PerformanceStatus? status,
-    MidiScore? score,
+    ScoreStructure? structure,
+    int? viewPhrase,
+    int? bpm,
+    int? initialBpm,
+    Map<int, NoteFeedback>? feedback,
+    double? cursorBeat,
+    bool clearCursor = false,
+    int? countInBeat,
+    int? countInBar,
+    int? beatInBar,
+    int? beatCount,
     double? precision,
     int? notesPlayed,
     Duration? elapsed,
+    PhraseResult? lastPhrase,
+    int? suggestedBpm,
+    bool clearSuggestion = false,
+    String? message,
+    bool clearMessage = false,
+    int? lastPlayedMidi,
+    NoteFeedback? lastFeedback,
+    ScoreResult? result,
     String? errorMessage,
   }) {
     return PerformanceState(
       status: status ?? this.status,
-      score: score ?? this.score,
+      structure: structure ?? this.structure,
+      viewPhrase: viewPhrase ?? this.viewPhrase,
+      bpm: bpm ?? this.bpm,
+      initialBpm: initialBpm ?? this.initialBpm,
+      feedback: feedback ?? this.feedback,
+      cursorBeat: clearCursor ? null : (cursorBeat ?? this.cursorBeat),
+      countInBeat: countInBeat ?? this.countInBeat,
+      countInBar: countInBar ?? this.countInBar,
+      beatInBar: beatInBar ?? this.beatInBar,
+      beatCount: beatCount ?? this.beatCount,
       precision: precision ?? this.precision,
       notesPlayed: notesPlayed ?? this.notesPlayed,
       elapsed: elapsed ?? this.elapsed,
+      lastPhrase: lastPhrase ?? this.lastPhrase,
+      suggestedBpm: clearSuggestion ? null : (suggestedBpm ?? this.suggestedBpm),
+      message: clearMessage ? null : (message ?? this.message),
+      lastPlayedMidi: lastPlayedMidi ?? this.lastPlayedMidi,
+      lastFeedback: lastFeedback ?? this.lastFeedback,
+      result: result ?? this.result,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }

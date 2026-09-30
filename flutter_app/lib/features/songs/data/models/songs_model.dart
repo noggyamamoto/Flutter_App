@@ -7,6 +7,7 @@ class SongsModel {
   final String nivelDificuldade;
   final int bpmPadrao;
   final String arquivoMidi;
+  final String arquivoPartitura;
 
   const SongsModel({
     required this.id,
@@ -15,6 +16,7 @@ class SongsModel {
     required this.nivelDificuldade,
     required this.bpmPadrao,
     required this.arquivoMidi,
+    this.arquivoPartitura = '',
   });
 
   factory SongsModel.fromMap(Map<String, dynamic> map) {
@@ -23,8 +25,9 @@ class SongsModel {
       titulo: map['titulo'] ?? '',
       compositor: map['compositor'] ?? '',
       nivelDificuldade: map['nivelDificuldade'] ?? '',
-      bpmPadrao: map['bpmPadrao'] ?? 0,
+      bpmPadrao: (map['bpmPadrao'] as num?)?.toInt() ?? 0,
       arquivoMidi: map['arquivoMidi'] ?? '',
+      arquivoPartitura: map['arquivoPartitura'] ?? '',
     );
   }
 
@@ -36,6 +39,7 @@ class SongsModel {
       'nivelDificuldade': nivelDificuldade,
       'bpmPadrao': bpmPadrao,
       'arquivoMidi': arquivoMidi,
+      'arquivoPartitura': arquivoPartitura,
     };
   }
 
@@ -47,6 +51,7 @@ class SongsModel {
       nivelDificuldade: nivelDificuldade,
       bpmPadrao: bpmPadrao,
       arquivoMidi: arquivoMidi,
+      arquivoPartitura: arquivoPartitura,
     );
   }
 }
