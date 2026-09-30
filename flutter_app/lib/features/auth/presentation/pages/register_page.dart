@@ -98,6 +98,24 @@ class _RegisterPageState
           email: email,
           senha: senha,
         );
+
+    // Garante que a tela ainda está montada.
+    if (!mounted) return;
+
+    // Recupera o estado atual depois do cadastro.
+    final currentState = ref.read(authProvider);
+
+    // Se o cadastro deu certo, o estado volta para
+    // "unauthenticated" com uma mensagem de sucesso.
+    // Nesse caso, voltamos para a tela de login para
+    // que o usuário faça o login manualmente.
+    final sucesso =
+        currentState.status == AuthStatus.unauthenticated &&
+        currentState.successMessage != null;
+
+    if (sucesso) {
+      Navigator.pop(context);
+    }
   }
 
   void _showMessage(String message) {

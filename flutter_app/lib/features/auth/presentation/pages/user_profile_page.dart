@@ -135,14 +135,9 @@ class UserProfilePage extends ConsumerWidget {
                               : user.email,
                         ),
 
-                        const SizedBox(height: 12),
-
-                        // Informação: ID (UID do Firebase).
-                        _InfoTile(
-                          icon: Icons.badge_outlined,
-                          label: 'ID',
-                          value: user.id,
-                        ),
+                        // O ID do usuário foi removido por
+                        // decisão de produto: não é exibido
+                        // na tela de perfil.
 
                         const SizedBox(height: 32),
 
@@ -249,9 +244,24 @@ class UserProfilePage extends ConsumerWidget {
       },
     );
 
-    if (confirm == true) {
-      await ref.read(authProvider.notifier).logout();
-    }
+    // Se o usuário cancelou, não faz nada.
+    if (confirm != true) return;
+
+    // Executa o logout.
+    await ref.read(authProvider.notifier).logout();
+
+    // Garante que ainda estamos montados.
+    if (!context.mounted) return;
+
+    // Volta todas as rotas empilhadas até a raiz.
+    //
+    // Como o AuthGate reage ao estado `unauthenticated`
+    // e renderiza a LoginPage, essa chamada garante que
+    // o usuário sai da tela de perfil e de qualquer outra
+    // tela empilhada, caindo direto na tela de login.
+    Navigator.of(context).popUntil(
+      (route) => route.isFirst,
+    );
   }
 }
 

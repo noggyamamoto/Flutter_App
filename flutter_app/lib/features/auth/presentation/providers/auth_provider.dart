@@ -152,25 +152,37 @@ class AuthState {
   // Mensagem de erro.
   final String? errorMessage;
 
+  // Mensagem de sucesso.
+  //
+  // Utilizada, por exemplo, para avisar na tela de login
+  // que o cadastro foi realizado com sucesso.
+  final String? successMessage;
+
   // Construtor.
   const AuthState({
     this.status = AuthStatus.initial,
     this.user,
     this.errorMessage,
+    this.successMessage,
   });
 
   // Cria uma cópia do estado atual.
+  //
+  // Importante: tanto `errorMessage` quanto `successMessage`
+  // NÃO usam "?? this.<campo>". Isso é intencional, pois
+  // queremos que passar `null` explicitamente limpe a
+  // mensagem em questão.
   AuthState copyWith({
     AuthStatus? status,
     AppUser? user,
     String? errorMessage,
+    String? successMessage,
   }) {
     return AuthState(
       status: status ?? this.status,
       user: user ?? this.user,
-      // Aqui o errorMessage NÃO usa "?? this.errorMessage"
-      // de propósito: passar null explicitamente limpa o erro.
       errorMessage: errorMessage,
+      successMessage: successMessage,
     );
   }
 }
@@ -223,9 +235,29 @@ class AuthNotifier extends Notifier<AuthState> {
     // Só faz sentido limpar se houver erro.
     if (state.errorMessage == null) return;
 
-    // Volta o estado para "não autenticado" sem erro.
+    // Volta o estado para "não autenticado" sem erro,
+    // preservando eventual mensagem de sucesso.
     state = AuthState(
       status: AuthStatus.unauthenticated,
+      user: state.user,
+      successMessage: state.successMessage,
+    );
+  }
+
+  // ========================================================
+  // LIMPAR SUCESSO
+  // ========================================================
+
+  /// Limpa a mensagem de sucesso atual.
+  ///
+  /// Chamado pela tela de login depois de exibir o
+  /// SnackBar verde de "conta criada com sucesso".
+  void clearSuccess() {
+    // Só faz sentido limpar se houver mensagem.
+    if (state.successMessage == null) return;
+
+    state = AuthState(
+      status: state.status,
       user: state.user,
     );
   }
@@ -242,6 +274,7 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(
       status: AuthStatus.loading,
       errorMessage: null,
+      successMessage: null,
     );
 
     try {
@@ -287,6 +320,7 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(
       status: AuthStatus.loading,
       errorMessage: null,
+      successMessage: null,
     );
 
     try {
@@ -294,17 +328,28 @@ class AuthNotifier extends Notifier<AuthState> {
       final registerUseCase = ref.read(registerProvider);
 
       // Executa o cadastro.
-      final user = await registerUseCase(
+      //
+      // Após esta chamada, o Firebase já autentica
+      // automaticamente o usuário recém-criado.
+      await registerUseCase(
         nome: nome,
         email: email,
         senha: senha,
       );
 
-      // Após o cadastro, o Firebase já autentica
-      // o usuário automaticamente.
-      state = AuthState(
-        status: AuthStatus.authenticated,
-        user: user,
+      // Como o fluxo desejado é:
+      //   cadastro -> tela de login -> login manual
+      // encerramos a sessão automática criada pelo
+      // Firebase logo após o cadastro.
+      await ref.read(firebaseAuthProvider).signOut();
+
+      // Volta o estado para "não autenticado" e deixa
+      // uma mensagem de sucesso para ser exibida na
+      // tela de login.
+      state = const AuthState(
+        status: AuthStatus.unauthenticated,
+        successMessage:
+            'Conta criada com sucesso! Faça login para continuar.',
       );
     } on FirebaseAuthException catch (error) {
       // Trata erros do Firebase.
@@ -330,6 +375,7 @@ class AuthNotifier extends Notifier<AuthState> {
     state = state.copyWith(
       status: AuthStatus.loading,
       errorMessage: null,
+      successMessage: null,
     );
 
     try {
