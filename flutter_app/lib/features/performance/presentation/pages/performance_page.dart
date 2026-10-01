@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 import 'package:flutter_app/features/performance/domain/entities/performance_state.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +20,6 @@ import '../../../gamification/presentation/providers/gamification_provider.dart'
 import '../../../history/presentation/providers/history_provider.dart';
 
 import '../../../score/domain/entities/expected_note.dart';
-import '../../../score/domain/entities/note_comparison.dart';
 
 import '../../../songs/domain/entities/song.dart';
 
@@ -30,7 +31,11 @@ import '../widgets/feedback_colors.dart';
 
 import '../widgets/score_display.dart';
 
-import '../widgets/visual_metronome.dart';
+import '../widgets/judgement_badge.dart';
+
+import '../widgets/note_guide.dart';
+
+import '../widgets/performance_hud.dart';
 
 import 'performance_result_page.dart';
 
@@ -314,127 +319,114 @@ class _PerformancePageState
 
   // -------------------------------------------------------
   // TELA PRINCIPAL (pronto, contagem, execução, frase reprovada)
+  //
+  // Layout inspirado nos apps de prática musical (Simply Piano,
+  // Yousician): progresso por trechos no topo, HUD com precisão e
+  // sequência de acertos, partitura em destaque com cursor e selos de
+  // avaliação sobre as notas, guia da próxima nota com teclado e
+  // controles na base. Em telas largas (web/desktop) o HUD e o guia
+  // ficam em um painel lateral.
   // -------------------------------------------------------
+
+  static const double _wideBreakpoint = 900;
 
   Widget _buildPerformance(
     PerformanceState state,
   ) {
 
-    final structure = state.structure!;
-    final settings = ref.watch(configurationProvider);
-    final phrase = structure.phrases[state.viewPhrase];
+    return LayoutBuilder(
+      builder: (context, constraints) {
 
-    return Column(
+        final wide = constraints.maxWidth >= _wideBreakpoint;
+        final showGuide = state.status == PerformanceStatus.countdown ||
+            state.status == PerformanceStatus.running;
 
-      children: [
+        // Em telas baixas (celular deitado) o teclado guia é ocultado.
+        final roomForGuide = constraints.maxHeight >= 640;
 
-        _buildHeader(state),
+        final scoreCard = _buildScoreCard(state, wide: wide);
 
-        _buildPhraseBar(state),
-
-        Expanded(
-
-          child: Stack(
-
+        if (wide) {
+          return Column(
             children: [
-
-              Positioned.fill(
-
-                child: Container(
-
-                color:
-                    Colors.white,
-
-                padding: const EdgeInsets.only(top: 8),
-
-                child:
-                    ScoreDisplay(
-                  score:
-                      structure.score,
-
-                  measureIndexes:
-                      phrase.measureIndexes,
-
-                  noteColors:
-                      FeedbackColors.map(state.feedback),
-
-                  evaluatedNoteIds:
-                      structure.evaluatedNoteIds,
-
-                  cursorBeat:
-                      state.cursorBeat,
-
-                  zoom:
-                      settings.zoom,
-                ),
+              _buildTopBar(state),
+              _buildProgress(state),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: scoreCard),
+                    SizedBox(
+                      width: 340,
+                      child: _buildSidePanel(state),
+                    ),
+                  ],
                 ),
               ),
-
-              // Contagem de entrada (RFA05).
-              if (state.status == PerformanceStatus.countdown)
-                Positioned.fill(
-                  child: CountdownWidget(
-                    beat: state.countInBeat,
-                    bar: state.countInBar,
-                    beatsPerBar: structure.score.beatsPerBar,
-                    totalBars: PerformanceNotifier.countInBars,
-                  ),
-                ),
-
-              // Tela de incentivo quando a frase fica abaixo de 50% (RFA08).
-              if (state.status == PerformanceStatus.phraseFailed)
-                Positioned.fill(
-                  child: _buildPhraseFailed(state),
-                ),
-
-              // Avisos (resultado da frase, sugestão de BPM, erros).
-              if (state.message != null &&
-                  state.status != PerformanceStatus.phraseFailed)
-                Positioned(
-                  left: 12,
-                  right: 12,
-                  bottom: 12,
-                  child: _buildMessage(state),
-                ),
             ],
-          ),
-        ),
+          );
+        }
 
-        _buildControls(state),
-      ],
+        // Telas baixas (celular deitado): HUD resumido na barra superior.
+        final short = constraints.maxHeight < 520;
+
+        return Column(
+          children: [
+            _buildTopBar(state, inlineStats: short),
+            _buildProgress(state),
+            if (!short) _buildHud(state),
+            Expanded(child: scoreCard),
+            if (showGuide && roomForGuide)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: _buildGuide(state, compact: true),
+              ),
+            _buildControls(state),
+          ],
+        );
+      },
     );
   }
 
 
-  Widget _buildHeader(
-    PerformanceState state,
-  ) {
+  // Próxima nota esperada (ainda sem avaliação) a partir do cursor.
+  ExpectedNote? _nextExpected(PerformanceState state) {
+
+    final structure = state.structure!;
+    final cursor = state.cursorBeat ?? structure.phrases[state.viewPhrase].startBeat;
+
+    for (final note in structure.expectedNotes) {
+      if (note.phraseIndex < state.viewPhrase) continue;
+      if (note.scoreNoteIds.any(state.feedback.containsKey)) continue;
+      if (note.endBeat <= cursor) continue;
+      return note;
+    }
+    return null;
+  }
+
+
+  Widget _buildTopBar(
+    PerformanceState state, {
+    bool inlineStats = false,
+  }) {
 
     final connection = ref.watch(connectionProvider);
     final ready = state.status == PerformanceStatus.ready;
+    final score = state.structure!.score;
 
-    return Container(
+    return Padding(
 
       padding:
-          const EdgeInsets.fromLTRB(8, 8, 12, 4),
+          const EdgeInsets.fromLTRB(4, 6, 8, 0),
 
       child: Row(
 
         children: [
 
           IconButton(
-
-            onPressed: () {
-
-              Navigator.maybePop(
-                context,
-              );
-            },
-
-            icon: const Icon(
-              Icons.arrow_back,
-              color: Colors.white,
-            ),
+            tooltip: 'Sair',
+            onPressed: () => Navigator.maybePop(context),
+            icon: const Icon(Icons.close_rounded, color: Colors.white),
           ),
 
           Expanded(
@@ -447,55 +439,55 @@ class _PerformancePageState
               children: [
 
                 Text(
-
                   widget.song.titulo,
-
                   maxLines: 1,
-
                   overflow: TextOverflow.ellipsis,
-
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
 
                 Text(
-                  '${state.structure!.score.beatsPerBar}/'
-                  '${state.structure!.score.beatType} · ${state.bpm} BPM',
+                  'Trecho ${state.viewPhrase + 1} de ${state.structure!.phrases.length}'
+                  ' · ${score.beatsPerBar}/${score.beatType}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 13,
+                    color: AppColors.textMuted,
+                    fontSize: 12,
                   ),
                 ),
               ],
             ),
           ),
 
-          // Status do dispositivo.
-          IconButton(
-            tooltip: connection.isConnected
-                ? connection.device!.name
-                : 'Conectar dispositivo',
-            onPressed: ready ? _openConnection : null,
-            icon: Icon(
-              connection.isConnected
-                  ? (connection.isSimulated ? Icons.smart_toy_outlined : Icons.sensors)
-                  : Icons.sensors_off,
-              color: connection.isConnected ? Colors.greenAccent : Colors.redAccent,
+          if (inlineStats && state.status != PerformanceStatus.ready) ...[
+            AccuracyRing(precision: state.precision, size: 36),
+            const SizedBox(width: 12),
+            StreakCounter(streak: state.streak),
+            const SizedBox(width: 12),
+            Text(
+              '${state.bpm} BPM · ${_formatElapsed(state.elapsed)}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
             ),
+            const SizedBox(width: 12),
+          ],
+
+          // Status do dispositivo.
+          _DevicePill(
+            connected: connection.isConnected,
+            simulated: connection.isSimulated,
+            name: connection.device?.name,
+            onTap: ready ? _openConnection : null,
           ),
 
           if (ready)
             IconButton(
               tooltip: 'Configurações',
               onPressed: _openSettings,
-              icon: const Icon(
-                Icons.tune,
-                color: Colors.white,
-              ),
+              icon: const Icon(Icons.tune_rounded, color: Colors.white),
             ),
         ],
       ),
@@ -503,79 +495,51 @@ class _PerformancePageState
   }
 
 
-  Widget _buildPhraseBar(
+  Widget _buildProgress(
     PerformanceState state,
   ) {
 
     final structure = state.structure!;
-    final total = structure.phrases.length;
     final ready = state.status == PerformanceStatus.ready;
-    final running = state.status == PerformanceStatus.running;
-    final settings = ref.watch(configurationProvider);
+    final notifier = ref.read(performanceProvider.notifier);
+    final phrase = structure.phrases[state.viewPhrase];
+    final cursor = state.cursorBeat;
+    final progress = cursor == null
+        ? 0.0
+        : ((cursor - phrase.startBeat) / phrase.durationBeats).clamp(0.0, 1.0);
 
     return Padding(
 
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
 
       child: Row(
 
         children: [
 
           if (ready)
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              onPressed: state.viewPhrase > 0
-                  ? () => ref.read(performanceProvider.notifier).showPhrase(state.viewPhrase - 1)
-                  : null,
-              icon: const Icon(Icons.chevron_left, color: Colors.white),
+            _RoundIcon(
+              icon: Icons.chevron_left_rounded,
+              tooltip: 'Trecho anterior',
+              onTap: state.viewPhrase > 0 ? () => notifier.showPhrase(state.viewPhrase - 1) : null,
             ),
 
-          Flexible(
-            child: Text(
-              'Trecho ${state.viewPhrase + 1} de $total',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.bold,
-              ),
+          Expanded(
+            child: PhraseProgressBar(
+              phraseCount: structure.phrases.length,
+              currentPhrase: state.viewPhrase,
+              currentProgress: progress,
+              phraseScores: state.phraseScores,
+              onTap: ready ? notifier.showPhrase : null,
             ),
           ),
 
           if (ready)
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              onPressed: state.viewPhrase < total - 1
-                  ? () => ref.read(performanceProvider.notifier).showPhrase(state.viewPhrase + 1)
+            _RoundIcon(
+              icon: Icons.chevron_right_rounded,
+              tooltip: 'Próximo trecho',
+              onTap: state.viewPhrase < structure.phrases.length - 1
+                  ? () => notifier.showPhrase(state.viewPhrase + 1)
                   : null,
-              icon: const Icon(Icons.chevron_right, color: Colors.white),
-            ),
-
-          const Spacer(),
-
-          // Última nota tocada, com a cor do resultado.
-          if (running && state.lastPlayedMidi != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              margin: const EdgeInsets.only(right: 12),
-              decoration: BoxDecoration(
-                color: (FeedbackColors.of(state.lastFeedback ?? NoteFeedback.pending) ??
-                        Colors.white24)
-                    .withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                ExpectedNote.noteName(state.lastPlayedMidi!),
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-              ),
-            ),
-
-          // Metrônomo visual (RU06).
-          if (running && settings.metronomeVisual)
-            VisualMetronome(
-              beatInBar: state.beatInBar,
-              beatsPerBar: structure.score.beatsPerBar,
             ),
         ],
       ),
@@ -583,24 +547,268 @@ class _PerformancePageState
   }
 
 
+  // HUD horizontal (celular): precisão, sequência, andamento e tempo.
+  Widget _buildHud(
+    PerformanceState state,
+  ) {
+
+    final settings = ref.watch(configurationProvider);
+    final active = state.status != PerformanceStatus.ready;
+
+    return Padding(
+
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+
+      child: Row(
+
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+
+        children: [
+
+          HudStat(
+            label: 'PRECISÃO',
+            value: AccuracyRing(precision: state.precision, size: 46, active: active),
+          ),
+
+          HudStat(
+            label: 'SEQUÊNCIA',
+            value: StreakCounter(streak: state.streak),
+          ),
+
+          HudStat(
+            label: 'BPM',
+            value: TempoPill(
+              bpm: state.bpm,
+              beatInBar: state.beatInBar,
+              beatsPerBar: state.structure!.score.beatsPerBar,
+              showBeats: settings.metronomeVisual && state.status == PerformanceStatus.running,
+            ),
+          ),
+
+          HudStat(
+            label: 'TEMPO',
+            value: Text(
+              _formatElapsed(state.elapsed),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  // Painel lateral (web/desktop).
+  Widget _buildSidePanel(
+    PerformanceState state,
+  ) {
+
+    final settings = ref.watch(configurationProvider);
+    final active = state.status != PerformanceStatus.ready;
+    final showGuide = state.status == PerformanceStatus.countdown ||
+        state.status == PerformanceStatus.running;
+
+    return Padding(
+
+      padding: const EdgeInsets.fromLTRB(0, 12, 16, 16),
+
+      child: Column(
+
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+
+        children: [
+
+          _Panel(
+            child: Column(
+              children: [
+                AccuracyRing(precision: state.precision, size: 96, active: active),
+                const SizedBox(height: 6),
+                const Text('Precisão', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    HudStat(label: 'SEQUÊNCIA', value: StreakCounter(streak: state.streak)),
+                    HudStat(
+                      label: 'BPM',
+                      value: TempoPill(
+                        bpm: state.bpm,
+                        beatInBar: state.beatInBar,
+                        beatsPerBar: state.structure!.score.beatsPerBar,
+                        showBeats: settings.metronomeVisual && state.status == PerformanceStatus.running,
+                      ),
+                    ),
+                    HudStat(
+                      label: 'TEMPO',
+                      value: Text(
+                        _formatElapsed(state.elapsed),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          if (showGuide)
+            _Panel(child: _buildGuide(state, compact: false)),
+
+          const Spacer(),
+
+          _buildControls(state, inPanel: true),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildGuide(
+    PerformanceState state, {
+    required bool compact,
+  }) {
+
+    return NoteGuide(
+      expectedMidi: _nextExpected(state)?.midi,
+      playedMidi: state.lastPlayedMidi,
+      playedFeedback: state.lastFeedback,
+      compact: compact,
+    );
+  }
+
+
+  Widget _buildScoreCard(
+    PerformanceState state, {
+    required bool wide,
+  }) {
+
+    final structure = state.structure!;
+    final settings = ref.watch(configurationProvider);
+    final phrase = structure.phrases[state.viewPhrase];
+    final running = state.status == PerformanceStatus.running ||
+        state.status == PerformanceStatus.countdown;
+    final next = running ? _nextExpected(state) : null;
+
+    return Padding(
+
+      padding: EdgeInsets.fromLTRB(wide ? 16 : 10, wide ? 12 : 4, wide ? 16 : 10, 4),
+
+      child: ClipRRect(
+
+        borderRadius: BorderRadius.circular(20),
+
+        child: Stack(
+
+          children: [
+
+            Positioned.fill(
+
+              child: Container(
+
+                color: AppColors.paper,
+
+                padding: const EdgeInsets.fromLTRB(6, 10, 6, 10),
+
+                child: ScoreDisplay(
+
+                  score: structure.score,
+
+                  measureIndexes: phrase.measureIndexes,
+
+                  noteColors: FeedbackColors.map(state.feedback),
+
+                  activeNoteIds: next == null ? const {} : next.scoreNoteIds.toSet(),
+
+                  cursorBeat: state.cursorBeat,
+
+                  zoom: settings.zoom * (wide ? 1.15 : 1.0),
+
+                  overlayBuilder: (context, layout) {
+                    final judgement = state.judgement;
+                    if (judgement == null || state.status != PerformanceStatus.running) {
+                      return const SizedBox.shrink();
+                    }
+                    return JudgementBadge(judgement: judgement, layout: layout);
+                  },
+                ),
+              ),
+            ),
+
+            // Contagem de entrada (RFA05).
+            if (state.status == PerformanceStatus.countdown)
+              Positioned.fill(
+                child: CountdownWidget(
+                  beat: state.countInBeat,
+                  bar: state.countInBar,
+                  beatsPerBar: structure.score.beatsPerBar,
+                  totalBars: PerformanceNotifier.countInBars,
+                ),
+              ),
+
+            // Tela de incentivo quando a frase fica abaixo de 50% (RFA08).
+            if (state.status == PerformanceStatus.phraseFailed)
+              Positioned.fill(
+                child: _buildPhraseFailed(state),
+              ),
+
+            // Resultado do trecho, sugestão de BPM e avisos.
+            if (state.message != null &&
+                state.status != PerformanceStatus.phraseFailed)
+              Positioned(
+                left: 10,
+                right: 10,
+                top: 10,
+                child: _buildMessage(state),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  // Banner do resultado do trecho (como o "section complete" dos apps).
   Widget _buildMessage(
     PerformanceState state,
   ) {
 
     final notifier = ref.read(performanceProvider.notifier);
+    final phraseScore = state.lastPhrase?.score;
+    final isResult = phraseScore != null && state.message!.startsWith('Trecho');
+    final accent = isResult ? FeedbackColors.forScore(phraseScore) : AppColors.primary;
 
     return Material(
-      color: const Color(0xFF232136),
-      elevation: 6,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 6, 10),
+      color: AppColors.surface,
+      elevation: 8,
+      shadowColor: Colors.black54,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: accent.withValues(alpha: 0.6)),
+        ),
         child: Row(
           children: [
-            Icon(
-              state.suggestedBpm != null ? Icons.speed : Icons.info_outline,
-              color: const Color(0xFF9B6DDA),
-            ),
+            if (isResult)
+              _Stars(score: phraseScore, color: accent)
+            else
+              Icon(
+                state.suggestedBpm != null ? Icons.speed_rounded : Icons.info_outline_rounded,
+                color: accent,
+              ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -613,14 +821,16 @@ class _PerformancePageState
                 onPressed: notifier.acceptTempoSuggestion,
                 style: TextButton.styleFrom(
                   foregroundColor: Colors.white,
-                  backgroundColor: Colors.deepPurple,
+                  backgroundColor: AppColors.primary,
+                  shape: const StadiumBorder(),
                 ),
                 child: Text('${state.suggestedBpm} BPM'),
               ),
             IconButton(
+              tooltip: 'Fechar',
               visualDensity: VisualDensity.compact,
               onPressed: notifier.dismissMessage,
-              icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+              icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
             ),
           ],
         ),
@@ -635,11 +845,12 @@ class _PerformancePageState
 
     final result = state.lastPhrase!;
     final notifier = ref.read(performanceProvider.notifier);
+    final color = FeedbackColors.forScore(result.score);
 
     return Container(
-      color: const Color(0xFF0F0E17).withValues(alpha: 0.9),
+      color: AppColors.background.withValues(alpha: 0.92),
       alignment: Alignment.center,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: SingleChildScrollView(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -647,75 +858,71 @@ class _PerformancePageState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.fitness_center, color: Color(0xFF9B6DDA), size: 56),
-              const SizedBox(height: 16),
+              Center(child: AccuracyRing(precision: result.score, size: 88)),
+              const SizedBox(height: 14),
               const Text(
                 'Vamos praticar este trecho!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 'Você acertou ${result.score.round()}% do trecho '
                 '${result.phraseIndex + 1}. A música parou aqui para você '
                 'repetir com calma — cada tentativa conta!',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70, fontSize: 15),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
               ),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _Stat(label: 'Altura', value: '${result.pitchAccuracy.round()}%'),
-                  _Stat(label: 'Ritmo', value: '${result.rhythmAccuracy.round()}%'),
-                  _Stat(label: 'Perdidas', value: '${result.notesMissed}'),
+                  _Stat(label: 'Altura', value: '${result.pitchAccuracy.round()}%', color: color),
+                  _Stat(label: 'Ritmo', value: '${result.rhythmAccuracy.round()}%', color: color),
+                  _Stat(label: 'Perdidas', value: '${result.notesMissed}', color: color),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
               SizedBox(
                 height: 52,
                 child: ElevatedButton.icon(
                   onPressed: () => notifier.retryPhrase(),
-                  icon: const Icon(Icons.replay),
+                  icon: const Icon(Icons.replay_rounded),
                   label: const Text(
                     'Repetir trecho',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: const StadiumBorder(),
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               SizedBox(
                 height: 48,
                 child: OutlinedButton.icon(
                   onPressed: () => notifier.retryPhrase(slower: true),
-                  icon: const Icon(Icons.speed),
+                  icon: const Icon(Icons.speed_rounded),
                   label: Text('Repetir mais devagar (${(state.bpm * 0.9).round()} BPM)'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF9B6DDA),
-                    side: const BorderSide(color: Color(0xFF39374A)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    foregroundColor: AppColors.primarySoft,
+                    side: const BorderSide(color: AppColors.border),
+                    shape: const StadiumBorder(),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               TextButton(
                 onPressed: () => notifier.finish(completed: false),
                 child: const Text(
                   'Encerrar e ver resultado',
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
               ),
             ],
@@ -726,84 +933,58 @@ class _PerformancePageState
   }
 
 
+  String _formatElapsed(Duration elapsed) {
+    final minutes = elapsed.inMinutes.toString().padLeft(2, '0');
+    final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+
   Widget _buildControls(
-    PerformanceState state,
-  ) {
+    PerformanceState state, {
+    bool inPanel = false,
+  }) {
 
     if (state.status == PerformanceStatus.ready) {
-      return _buildStartControls(state);
+      return _buildStartControls(state, inPanel: inPanel);
     }
 
     if (state.status == PerformanceStatus.phraseFailed) {
-      return const SizedBox(height: 20);
+      return const SizedBox(height: 16);
     }
 
-    // Converte o tempo decorrido para minutos.
-    final minutes = state
-        .elapsed
-        .inMinutes
-        .toString()
-        .padLeft(2, '0');
+    return Padding(
 
-    // Converte o tempo decorrido para segundos.
-    final seconds =
-        (state.elapsed.inSeconds %
-                60)
-            .toString()
-            .padLeft(2, '0');
-
-    return Container(
-
-      padding:
-          const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(inPanel ? 0 : 16, 10, inPanel ? 0 : 16, inPanel ? 0 : 14),
 
       child: Row(
 
         children: [
 
-          // Mostra o tempo da performance.
-          Text(
-
-            '$minutes:$seconds',
-
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
+          // Notas tocadas até agora.
+          Expanded(
+            child: Text(
+              '${state.notesPlayed} notas tocadas',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
             ),
           ),
 
-          const SizedBox(width: 20),
-
-          // Precisão parcial.
-          Text(
-            '${state.precision.round()}%',
-            style: const TextStyle(
-              color: Color(0xFF9B6DDA),
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const Spacer(),
-
-          ElevatedButton(
-
-            style:
-                ElevatedButton.styleFrom(
-
-              backgroundColor:
-                  Colors.deepPurple,
-
-              foregroundColor:
-                  Colors.white,
-            ),
-
-            // Finaliza a performance.
-            onPressed: () =>
-                ref.read(performanceProvider.notifier).stop(),
-
-            child: const Text(
-              'PARAR',
+          // Finaliza a performance.
+          SizedBox(
+            height: 46,
+            child: ElevatedButton.icon(
+              onPressed: () => ref.read(performanceProvider.notifier).stop(),
+              icon: const Icon(Icons.stop_rounded),
+              label: const Text(
+                'PARAR',
+                style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+              ),
             ),
           ),
         ],
@@ -813,16 +994,16 @@ class _PerformancePageState
 
 
   Widget _buildStartControls(
-    PerformanceState state,
-  ) {
+    PerformanceState state, {
+    bool inPanel = false,
+  }) {
 
     final connection = ref.watch(connectionProvider);
     final notifier = ref.read(performanceProvider.notifier);
 
     return Padding(
 
-      padding:
-          const EdgeInsets.fromLTRB(20, 12, 20, 20),
+      padding: EdgeInsets.fromLTRB(inPanel ? 0 : 20, 8, inPanel ? 0 : 20, inPanel ? 0 : 18),
 
       child: Column(
 
@@ -831,29 +1012,42 @@ class _PerformancePageState
         children: [
 
           // Ajuste do andamento antes de começar.
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                onPressed: () => notifier.setBpm(state.bpm - 5),
-                icon: const Icon(Icons.remove_circle_outline, color: Colors.white70),
-              ),
-              Text(
-                '${state.bpm} BPM',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Diminuir andamento',
+                  onPressed: () => notifier.setBpm(state.bpm - 5),
+                  icon: const Icon(Icons.remove_rounded, color: Colors.white70),
                 ),
-              ),
-              IconButton(
-                onPressed: () => notifier.setBpm(state.bpm + 5),
-                icon: const Icon(Icons.add_circle_outline, color: Colors.white70),
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    '${state.bpm} BPM',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Aumentar andamento',
+                  onPressed: () => notifier.setBpm(state.bpm + 5),
+                  icon: const Icon(Icons.add_rounded, color: Colors.white70),
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
           SizedBox(
 
@@ -861,22 +1055,25 @@ class _PerformancePageState
                 double.infinity,
 
             height:
-                55,
+                54,
 
             child: connection.isConnected
-                ? ElevatedButton(
+                ? ElevatedButton.icon(
 
                     onPressed: () {
 
                       notifier.start(fromPhrase: state.viewPhrase);
                     },
 
+                    icon: const Icon(Icons.play_arrow_rounded, size: 28),
+
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
+                      shape: const StadiumBorder(),
                     ),
 
-                    child: Text(
+                    label: Text(
 
                       state.viewPhrase == 0
                           ? 'INICIAR'
@@ -891,7 +1088,7 @@ class _PerformancePageState
                   )
                 : OutlinedButton.icon(
                     onPressed: _openConnection,
-                    icon: const Icon(Icons.sensors),
+                    icon: const Icon(Icons.sensors_rounded),
                     label: const Text(
                       'CONECTAR DISPOSITIVO',
                       style: TextStyle(
@@ -901,7 +1098,8 @@ class _PerformancePageState
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.deepPurple, width: 2),
+                      shape: const StadiumBorder(),
+                      side: const BorderSide(color: AppColors.primary, width: 2),
                     ),
                   ),
           ),
@@ -1061,6 +1259,9 @@ class _PerformancePageState
 
           newTrophies:
               newTrophies,
+
+          bestStreak:
+              state.bestStreak,
         ),
       ),
     );
@@ -1072,10 +1273,12 @@ class _Stat extends StatelessWidget {
 
   final String label;
   final String value;
+  final Color color;
 
   const _Stat({
     required this.label,
     required this.value,
+    required this.color,
   });
 
   @override
@@ -1087,18 +1290,143 @@ class _Stat extends StatelessWidget {
         children: [
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: color,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           Text(
             label,
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),
         ],
       ),
+    );
+  }
+}
+
+
+// Estado do dispositivo no topo da tela.
+class _DevicePill extends StatelessWidget {
+
+  final bool connected;
+  final bool simulated;
+  final String? name;
+  final VoidCallback? onTap;
+
+  const _DevicePill({
+    required this.connected,
+    required this.simulated,
+    required this.name,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+
+    final color = connected ? AppColors.correct : AppColors.incorrect;
+    final text = !connected ? 'Desconectado' : (simulated ? 'Demonstração' : 'Conectado');
+
+    return Tooltip(
+      message: connected ? (name ?? text) : 'Conectar dispositivo',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                connected
+                    ? (simulated ? Icons.smart_toy_outlined : Icons.sensors_rounded)
+                    : Icons.sensors_off_rounded,
+                color: color,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+class _RoundIcon extends StatelessWidget {
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  const _RoundIcon({required this.icon, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+
+    return IconButton(
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      onPressed: onTap,
+      icon: Icon(icon, color: onTap == null ? Colors.white24 : Colors.white),
+    );
+  }
+}
+
+
+// Cartão do painel lateral.
+class _Panel extends StatelessWidget {
+
+  final Widget child;
+
+  const _Panel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+      ),
+      child: child,
+    );
+  }
+}
+
+
+// Estrelas do resultado do trecho (1 a 3).
+class _Stars extends StatelessWidget {
+
+  final double score;
+  final Color color;
+
+  const _Stars({required this.score, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+
+    final stars = score >= 90 ? 3 : (score >= 70 ? 2 : 1);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < 3; i++)
+          Icon(
+            i < stars ? Icons.star_rounded : Icons.star_outline_rounded,
+            color: i < stars ? color : Colors.white24,
+            size: 18,
+          ),
+      ],
     );
   }
 }

@@ -49,7 +49,6 @@ class MusicHistoryWidget
               // Somente os compassos das frases tocadas.
               measureIndexes: _playedMeasures(structure),
               noteColors: FeedbackColors.map(feedback),
-              evaluatedNoteIds: structure.evaluatedNoteIds,
               zoom: 1.0,
             ),
     );

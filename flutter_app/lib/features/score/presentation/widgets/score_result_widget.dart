@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../performance/presentation/widgets/feedback_colors.dart';
 import '../../domain/entities/score_result.dart';
 
 // Pontuação macro: precisão de altura (Hz) e de duração/tempo (RU13).
@@ -13,7 +15,7 @@ class ScoreResultWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1922),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
@@ -22,13 +24,13 @@ class ScoreResultWidget extends StatelessWidget {
           _Bar(
             label: 'Altura (notas certas)',
             value: result.pitchAccuracy,
-            color: Colors.green,
+            color: AppColors.correct,
           ),
           const SizedBox(height: 14),
           _Bar(
             label: 'Ritmo (tempo e duração)',
             value: result.rhythmAccuracy,
-            color: const Color(0xFF9B6DDA),
+            color: AppColors.primary,
           ),
           const SizedBox(height: 18),
           Wrap(
@@ -75,11 +77,7 @@ class ScoreResultWidget extends StatelessWidget {
     );
   }
 
-  Color _phraseColor(double score) {
-    if (score >= 80) return Colors.green;
-    if (score >= 50) return Colors.orange;
-    return Colors.red;
-  }
+  Color _phraseColor(double score) => FeedbackColors.forScore(score);
 }
 
 class _Bar extends StatelessWidget {

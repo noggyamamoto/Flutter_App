@@ -18,12 +18,18 @@ class Song {
     required this.arquivoMidi,
     this.arquivoPartitura = ''});
 
-  // Nome do arquivo da partitura. Documentos antigos do Firestore possuem
-  // apenas o MIDI: nesse caso usa o mesmo nome com extensão .xml.
-  String get partitura {
-    if (arquivoPartitura.isNotEmpty) return arquivoPartitura;
+  // Arquivos candidatos da partitura, em ordem de preferência.
+  //
+  // Se o documento do Firestore informa `arquivoPartitura`, ele é usado.
+  // Caso contrário, procura um arquivo com o mesmo nome do MIDI exportado
+  // diretamente em MusicXML (.musicxml), depois .xml e .mxl (compactado).
+  List<String> get partituraCandidates {
+    if (arquivoPartitura.isNotEmpty) return [arquivoPartitura];
     final dot = arquivoMidi.lastIndexOf('.');
     final base = dot > 0 ? arquivoMidi.substring(0, dot) : arquivoMidi;
-    return '$base.xml';
+    return ['$base.musicxml', '$base.xml', '$base.mxl'];
   }
+
+  // Arquivo principal da partitura.
+  String get partitura => partituraCandidates.first;
 }

@@ -1,4 +1,4 @@
-﻿name: flutter_app
+name: flutter_app
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -41,6 +41,8 @@ dependencies:
   xml: ^7.0.1
   shared_preferences: ^2.5.5
   audioplayers: ^6.8.1
+  archive: ^4.3.0
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:
@@ -68,12 +70,13 @@ flutter:
     - assets/midi/
     - assets/partituras/
 
-  # Fonte com os símbolos musicais (claves, acidentes e pausas).
-  # Noto Music – SIL Open Font License 1.1 (assets/fonts/OFL.txt).
+  # Fonte musical SMuFL usada na gravação da partitura (claves, cabeças,
+  # acidentes, pausas, bandeirolas). Bravura – SIL Open Font License 1.1
+  # (assets/fonts/OFL-Bravura.txt).
   fonts:
-    - family: NotoMusic
+    - family: Bravura
       fonts:
-        - asset: assets/fonts/NotoMusic-Regular.ttf
+        - asset: assets/fonts/Bravura.otf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

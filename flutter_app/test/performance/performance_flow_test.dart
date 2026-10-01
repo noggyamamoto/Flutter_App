@@ -23,7 +23,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _FileScoreRepository implements ScoreRepository {
   @override
   Future<MusicalScore> getScore(String fileName) async {
-    return MusicXmlParser().parse(File('assets/partituras/$fileName').readAsStringSync());
+    final file = File('assets/partituras/$fileName');
+    if (!file.existsSync()) throw Exception('não encontrada: $fileName');
+    return MusicXmlParser().parse(file.readAsStringSync());
   }
 }
 
@@ -126,6 +128,10 @@ void main() {
     expect(result.pitchAccuracy, greaterThan(95));
     expect(result.overall, greaterThan(80));
     expect(finished.feedback, isNotEmpty);
+    // HUD: sequência de acertos, selo da última nota e nota de cada trecho.
+    expect(finished.bestStreak, greaterThan(10));
+    expect(finished.judgement, isNotNull);
+    expect(finished.phraseScores.keys, containsAll([0, 1, 2, 3]));
   }, timeout: const Timeout(Duration(seconds: 60)));
 
   test('frase abaixo de 50% interrompe a execução e permite repetir', () async {

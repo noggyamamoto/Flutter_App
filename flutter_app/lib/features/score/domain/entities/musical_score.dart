@@ -3,6 +3,60 @@
 // Todas as posições e durações são medidas em semínimas (tempos de 1/4),
 // independentemente das "divisions" usadas no arquivo.
 
+// Clave de uma pauta: sinal (G, F, C, percussion), linha em que o sinal
+// é desenhado (1 = linha inferior) e transposição de oitava (clave de
+// sol 8vb = -1).
+class Clef {
+  final String sign;
+  final int line;
+  final int octaveChange;
+
+  const Clef(this.sign, this.line, {this.octaveChange = 0});
+
+  static const treble = Clef('G', 2);
+  static const bass = Clef('F', 4);
+
+  // Clave padrão de cada pauta quando o arquivo não informa.
+  static Clef defaultFor(int staff) => staff <= 1 ? treble : bass;
+
+  // Posição diatônica (C0 = 0) da linha inferior da pauta.
+  //
+  // A linha em que a clave é desenhada recebe a nota de referência da
+  // clave (sol 4, fá 3 ou dó 4); as demais linhas ficam a cada terça.
+  int get bottomLineDiatonic {
+    final reference = switch (sign) {
+      'F' => 3 * 7 + 3, // F3
+      'C' => 4 * 7 + 0, // C4
+      'G' => 4 * 7 + 4, // G4
+      _ => 4 * 7 + 6, // percussão/TAB: B4 na linha central
+    };
+    final clefLine = sign == 'G' || sign == 'F' || sign == 'C' ? line : 3;
+    return reference - (clefLine - 1) * 2 + octaveChange * 7;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is Clef &&
+      other.sign == sign &&
+      other.line == line &&
+      other.octaveChange == octaveChange;
+
+  @override
+  int get hashCode => Object.hash(sign, line, octaveChange);
+
+  @override
+  String toString() => '$sign$line${octaveChange == 0 ? '' : '($octaveChange)'}';
+}
+
+// Mudança de clave no meio de um compasso.
+class ClefChange {
+  final int staff;
+  final double beat;
+  final Clef clef;
+
+  const ClefChange({required this.staff, required this.beat, required this.clef});
+}
+
 // Nota (ou pausa) de uma pauta.
 class ScoreNote {
   // Identificador sequencial dentro da partitura.
@@ -40,8 +94,19 @@ class ScoreNote {
   // Quantidade de pontos de aumento.
   final int dots;
 
-  // Acidente a ser desenhado (sharp, flat, natural...) ou null.
+  // Acidente a ser desenhado (sharp, flat, natural...) ou null. Vem do
+  // arquivo (<accidental>) ou é calculado pela armadura e pelos acidentes
+  // anteriores do compasso.
   final String? accidental;
+
+  // Clave vigente da pauta no momento da nota.
+  final Clef clef;
+
+  // Pausa de compasso inteiro (centralizada no compasso).
+  final bool isMeasureRest;
+
+  // Pausa com posição vertical definida no arquivo (<display-step>).
+  final bool hasRestPosition;
 
   // Ligaduras de prolongamento.
   final bool tieStart;
@@ -73,7 +138,34 @@ class ScoreNote {
     this.tieStop = false,
     this.beams = const {},
     this.stem,
+    this.clef = Clef.treble,
+    this.isMeasureRest = false,
+    this.hasRestPosition = false,
   });
+
+  ScoreNote withAccidental(String? value) => ScoreNote(
+        id: id,
+        measureIndex: measureIndex,
+        staff: staff,
+        voice: voice,
+        startBeat: startBeat,
+        durationBeats: durationBeats,
+        isRest: isRest,
+        isChordMember: isChordMember,
+        step: step,
+        alter: alter,
+        octave: octave,
+        type: type,
+        dots: dots,
+        accidental: value,
+        tieStart: tieStart,
+        tieStop: tieStop,
+        beams: beams,
+        stem: stem,
+        clef: clef,
+        isMeasureRest: isMeasureRest,
+        hasRestPosition: hasRestPosition,
+      );
 
   double get endBeat => startBeat + durationBeats;
 
@@ -130,8 +222,15 @@ class ScoreMeasure {
   final bool showTime;
   final bool showKey;
 
-  // Claves por pauta (G, F, C).
-  final Map<int, String> clefs;
+  // Claves vigentes no início do compasso, por pauta.
+  final Map<int, Clef> clefs;
+
+  // Mudanças de clave dentro do compasso (ou no início, quando a clave
+  // muda em relação ao compasso anterior).
+  final List<ClefChange> clefChanges;
+
+  // Símbolo da fórmula de compasso: null, 'common' (C) ou 'cut'.
+  final String? timeSymbol;
 
   // Notas do compasso (todas as pautas).
   final List<ScoreNote> notes;
@@ -148,6 +247,8 @@ class ScoreMeasure {
     required this.showKey,
     required this.clefs,
     required this.notes,
+    this.clefChanges = const [],
+    this.timeSymbol,
   });
 
   double get endBeat => startBeat + durationBeats;
@@ -166,7 +267,11 @@ class MusicalScore {
 
   final List<ScoreMeasure> measures;
 
+  // Nome do instrumento (parte) exibido no início do primeiro sistema.
+  final String partName;
+
   const MusicalScore({
+    this.partName = '',
     required this.title,
     required this.composer,
     required this.staves,
