@@ -22,6 +22,17 @@ class NoteGuide extends StatelessWidget {
     this.compact = false,
   });
 
+  // Centro do teclado: entre a nota esperada e a tocada quando estão
+  // próximas, para que as duas teclas apareçam.
+  int _center() {
+    final expected = expectedMidi;
+    final played = playedMidi;
+    if (expected != null && played != null && (expected - played).abs() <= 14) {
+      return (expected + played) ~/ 2;
+    }
+    return expected ?? played ?? 60;
+  }
+
   @override
   Widget build(BuildContext context) {
     final playedColor = playedFeedback == null
@@ -57,7 +68,7 @@ class NoteGuide extends StatelessWidget {
         SizedBox(
           height: compact ? 54 : 72,
           child: MiniKeyboard(
-            centerMidi: expectedMidi ?? playedMidi ?? 60,
+            centerMidi: _center(),
             expectedMidi: expectedMidi,
             playedMidi: playedMidi,
             playedColor: playedColor,

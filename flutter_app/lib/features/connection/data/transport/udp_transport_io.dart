@@ -13,6 +13,9 @@ class PlatformUdpTransport implements UdpTransport {
   bool get isSupported => true;
 
   @override
+  bool get supportsBroadcast => true;
+
+  @override
   bool get isOpen => _socket != null;
 
   @override

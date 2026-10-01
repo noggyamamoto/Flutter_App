@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'udp_transport_stub.dart'
+import 'udp_transport_web.dart'
     if (dart.library.io) 'udp_transport_io.dart' as platform;
 
 // Datagrama recebido.
@@ -16,14 +16,21 @@ class UdpDatagram {
   });
 }
 
-// Socket UDP independente de plataforma.
+// Transporte de datagramas independente de plataforma.
 //
-// Em Android, iOS, macOS, Windows e Linux usa RawDatagramSocket (dart:io).
-// Na web não existe UDP: `isSupported` retorna false.
+// - Android, iOS, macOS, Windows e Linux: UDP com RawDatagramSocket
+//   (dart:io), com descoberta por broadcast.
+// - Web: o navegador não tem UDP; cada "datagrama" é uma mensagem binária
+//   em um WebSocket com o dispositivo (ws://IP/ws – RNFA02). Não há
+//   broadcast, então a busca é feita pelo IP informado (ou pelo IP padrão
+//   da rede própria do dispositivo, 192.168.4.1).
 abstract class UdpTransport {
   factory UdpTransport() = platform.PlatformUdpTransport;
 
   bool get isSupported;
+
+  // Descoberta por broadcast disponível (false na web).
+  bool get supportsBroadcast;
 
   // Abre o socket em uma porta livre com broadcast habilitado.
   Future<void> open();

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -189,8 +190,12 @@ class ConnectionNotifier extends Notifier<DeviceConnectionState> {
         devices: devices,
         searched: true,
         message: devices.isEmpty
-            ? 'Nenhum dispositivo encontrado. Verifique se ele está ligado '
-                'e conectado à mesma rede Wi-Fi.'
+            ? (kIsWeb
+                ? 'Nenhum dispositivo encontrado. No navegador a busca '
+                    'automática não está disponível: informe o IP do '
+                    'dispositivo (exibido no menu serial) no campo abaixo.'
+                : 'Nenhum dispositivo encontrado. Verifique se ele está ligado '
+                    'e conectado à mesma rede Wi-Fi.')
             : null,
       );
     } catch (e) {

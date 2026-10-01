@@ -12,6 +12,11 @@ class DeviceProtocol {
   static const int magic = 0x5443;
   static const int version = 1;
   static const int devicePort = 54322;
+
+  // Servidor WebSocket do dispositivo (usado pelo app na web, onde não
+  // existe UDP): os pacotes são os mesmos, um por mensagem binária.
+  static const int webSocketPort = 80;
+  static const String webSocketPath = '/ws';
   static const int headerSize = 12;
   static const int nameLength = 24;
   static const int firmwareLength = 12;
