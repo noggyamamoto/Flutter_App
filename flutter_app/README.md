@@ -1,17 +1,12 @@
 # flutter_app
 
-A new Flutter project.
+Código-fonte do aplicativo Flutter do projeto **Partitura IoT**.
 
-## Getting Started
+A documentação completa (arquitetura, diagramas de fluxo e de classes, renderização da partitura, interface de feedback, plataformas, testes e Firestore) está no [README do repositório](../README.md).
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+flutter run            # celular/emulador
+flutter run -d chrome  # navegador
+flutter test           # testes
+```
