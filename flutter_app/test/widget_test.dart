@@ -152,7 +152,10 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('87%'), findsOneWidget);
     expect(find.text('PARAR'), findsOneWidget);
-    expect(find.text('Trecho 1 de ${structure.phrases.length}'), findsOneWidget);
+    expect(find.textContaining('Trecho 1 de ${structure.phrases.length}'), findsOneWidget);
+    // HUD no padrão dos apps de prática: precisão, sequência e guia da nota.
+    expect(find.text('SEQUÊNCIA'), findsOneWidget);
+    expect(find.text('Próxima nota'), findsOneWidget);
   });
 
   testWidgets('frase abaixo de 50% mostra a tela de incentivo', (tester) async {

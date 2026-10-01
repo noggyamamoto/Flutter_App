@@ -2,6 +2,49 @@ import '../../../score/domain/entities/note_comparison.dart';
 import '../../../score/domain/entities/score_result.dart';
 import '../../../score/domain/services/score_analyzer.dart';
 
+// Avaliação instantânea da última nota (selo exibido sobre a partitura,
+// como nos apps de prática musical: "Perfeito!", "Atrasado"...).
+class NoteJudgement {
+  // Número sequencial (cada nova avaliação reinicia a animação).
+  final int serial;
+
+  // Nota da partitura onde o selo é exibido (null = nota extra).
+  final int? noteId;
+
+  final NoteFeedback feedback;
+
+  // Texto curto exibido ao aluno.
+  final String label;
+
+  const NoteJudgement({
+    required this.serial,
+    required this.noteId,
+    required this.feedback,
+    required this.label,
+  });
+
+  // Gera o texto a partir da comparação com o gabarito.
+  static String labelFor(NoteComparison? comparison) {
+    if (comparison == null) return 'Nota extra';
+    final timing = comparison.onsetErrorMs;
+    switch (comparison.feedback) {
+      case NoteFeedback.correct:
+        return 'Perfeito!';
+      case NoteFeedback.approximate:
+        if (comparison.pitchScore >= 1 && timing != null) {
+          return timing > 0 ? 'Atrasado' : 'Adiantado';
+        }
+        return 'Quase!';
+      case NoteFeedback.incorrect:
+        return 'Nota errada';
+      case NoteFeedback.missed:
+        return 'Perdeu';
+      case NoteFeedback.pending:
+        return '';
+    }
+  }
+}
+
 enum PerformanceStatus {
   initial,
   loading,
@@ -66,6 +109,16 @@ class PerformanceState {
   // Resultado final.
   final ScoreResult? result;
 
+  // Sequência atual de acertos e a maior sequência da execução.
+  final int streak;
+  final int bestStreak;
+
+  // Última avaliação instantânea (selo sobre a nota).
+  final NoteJudgement? judgement;
+
+  // Pontuação (0 a 100) de cada trecho já avaliado.
+  final Map<int, double> phraseScores;
+
   final String? errorMessage;
 
   const PerformanceState({
@@ -90,6 +143,10 @@ class PerformanceState {
     this.lastFeedback,
     this.result,
     this.errorMessage,
+    this.streak = 0,
+    this.bestStreak = 0,
+    this.judgement,
+    this.phraseScores = const {},
   });
 
   PerformanceState copyWith({
@@ -117,6 +174,11 @@ class PerformanceState {
     NoteFeedback? lastFeedback,
     ScoreResult? result,
     String? errorMessage,
+    int? streak,
+    int? bestStreak,
+    NoteJudgement? judgement,
+    bool clearJudgement = false,
+    Map<int, double>? phraseScores,
   }) {
     return PerformanceState(
       status: status ?? this.status,
@@ -140,6 +202,10 @@ class PerformanceState {
       lastFeedback: lastFeedback ?? this.lastFeedback,
       result: result ?? this.result,
       errorMessage: errorMessage ?? this.errorMessage,
+      streak: streak ?? this.streak,
+      bestStreak: bestStreak ?? this.bestStreak,
+      judgement: clearJudgement ? null : (judgement ?? this.judgement),
+      phraseScores: phraseScores ?? this.phraseScores,
     );
   }
 }

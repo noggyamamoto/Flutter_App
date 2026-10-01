@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../score/domain/entities/note_comparison.dart';
 
 // Cores do feedback em tempo real (RFA06): verde = acerto,
-// laranja = aproximado, vermelho = erro.
+// amarelo = aproximado, vermelho = erro.
 class FeedbackColors {
-  static const correct = Colors.green;
-  static const approximate = Colors.orange;
-  static const incorrect = Colors.red;
+  static const correct = AppColors.correct;
+  static const approximate = AppColors.approximate;
+  static const incorrect = AppColors.incorrect;
 
   static Color? of(NoteFeedback feedback) => switch (feedback) {
         NoteFeedback.correct => correct,
@@ -24,6 +25,13 @@ class FeedbackColors {
       if (color != null) colors[id] = color;
     });
     return colors;
+  }
+
+  // Cor de uma pontuação (0 a 100): trechos e precisão geral.
+  static Color forScore(double score) {
+    if (score >= 80) return correct;
+    if (score >= 50) return approximate;
+    return incorrect;
   }
 
   // Cores do metrônomo visual, iguais às do LED RGB do dispositivo (RFE03).

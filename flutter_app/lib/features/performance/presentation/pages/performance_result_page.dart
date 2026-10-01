@@ -23,9 +23,7 @@ import '../widgets/performance_score_card.dart';
 
 import 'performance_page.dart';
 
-class PerformanceResultPage
-    extends ConsumerStatefulWidget {
-
+class PerformanceResultPage extends ConsumerStatefulWidget {
   // Música que acabou de ser executada.
   final Song song;
 
@@ -45,6 +43,9 @@ class PerformanceResultPage
   // Troféus conquistados nesta execução.
   final List<Trophy> newTrophies;
 
+  // Maior sequência de acertos.
+  final int? bestStreak;
+
   const PerformanceResultPage({
     super.key,
     required this.song,
@@ -54,221 +55,164 @@ class PerformanceResultPage
     this.structure,
     this.feedback = const {},
     this.newTrophies = const [],
+    this.bestStreak,
   });
 
   @override
-  ConsumerState<
-      PerformanceResultPage>
-      createState() =>
-          _PerformanceResultPageState();
+  ConsumerState<PerformanceResultPage> createState() =>
+      _PerformanceResultPageState();
 }
 
-class _PerformanceResultPageState
-    extends ConsumerState<
-        PerformanceResultPage> {
-
+class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
   // 0 = Histórico.
   // 1 = Evolução.
   int selectedTab = 0;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-
+  Widget build(BuildContext context) {
     // Recupera o usuário atualmente logado.
-    final user =
-        ref.watch(authProvider).user;
+    final user = ref.watch(authProvider).user;
 
     // Se não houver usuário logado,
     // não conseguimos buscar o histórico.
     if (user == null) {
-
       return const Scaffold(
-        backgroundColor:
-            Color(0xFF0F0E17),
+        backgroundColor: Color(0xFF0F0E17),
 
         body: Center(
           child: Text(
             'Usuário não autenticado.',
-            style: TextStyle(
-              color: Colors.white,
-            ),
+            style: TextStyle(color: Colors.white),
           ),
         ),
       );
     }
 
     // Cria os parâmetros da consulta.
-    final historyParams =
-        HistoryParams(
+    final historyParams = HistoryParams(
       userId: user.id,
       songId: widget.song.id,
     );
 
     // Busca o histórico da música
     // para o usuário atual.
-    final historyAsync =
-        ref.watch(
-      historyProvider(historyParams),
-    );
+    final historyAsync = ref.watch(historyProvider(historyParams));
 
     return Scaffold(
-
-      backgroundColor:
-          const Color(0xFF0F0E17),
+      backgroundColor: const Color(0xFF0F0E17),
 
       body: SafeArea(
-
         child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
 
-          padding:
-              const EdgeInsets.all(20),
+          // Em telas largas (web) o conteúdo fica centralizado.
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
 
-          child: Column(
+                children: [
+                  // Título da página.
+                  const Text(
+                    'Resumo da performance',
 
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-
-            children: [
-
-              // Título da página.
-              const Text(
-                'Resumo da performance',
-
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(
-                height: 24,
-              ),
-
-              // Card com a pontuação atual.
-              PerformanceScoreCard(
-                precision:
-                    widget.precision,
-
-                notesPlayed:
-                    widget.notesPlayed,
-              ),
-
-              const SizedBox(
-                height: 16,
-              ),
-
-              // Precisão de altura e ritmo (RU13).
-              if (widget.result != null)
-                ScoreResultWidget(
-                  result: widget.result!,
-                ),
-
-              // Troféus conquistados agora (RFA10).
-              if (widget.newTrophies.isNotEmpty) ...[
-
-                const SizedBox(
-                  height: 16,
-                ),
-
-                _buildNewTrophies(),
-              ],
-
-              const SizedBox(
-                height: 24,
-              ),
-
-              // Abas.
-              _buildTabs(),
-
-              const SizedBox(
-                height: 20,
-              ),
-
-              // Aba selecionada.
-              if (selectedTab == 0)
-
-                // Histórico = notas executadas
-                // durante a performance atual.
-                _buildHistory()
-
-              else
-
-                // Evolução = histórico das
-                // execuções anteriores.
-                _buildEvolution(
-                  historyAsync,
-                ),
-
-              const SizedBox(
-                height: 30,
-              ),
-
-              // Reiniciar a mesma música (RU16).
-              SizedBox(
-
-                width:
-                    double.infinity,
-
-                height: 55,
-
-                child: ElevatedButton.icon(
-
-                  onPressed: () {
-
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PerformancePage(
-                          song: widget.song,
-                        ),
-                      ),
-                    );
-                  },
-
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
 
-                  icon: const Icon(Icons.replay),
+                  const SizedBox(height: 24),
 
-                  label:
-                      const Text('TOCAR NOVAMENTE'),
-                ),
+                  // Card com a pontuação atual.
+                  PerformanceScoreCard(
+                    precision: widget.precision,
+
+                    notesPlayed: widget.notesPlayed,
+
+                    bestStreak: widget.bestStreak,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Precisão de altura e ritmo (RU13).
+                  if (widget.result != null)
+                    ScoreResultWidget(result: widget.result!),
+
+                  // Troféus conquistados agora (RFA10).
+                  if (widget.newTrophies.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+
+                    _buildNewTrophies(),
+                  ],
+
+                  const SizedBox(height: 24),
+
+                  // Abas.
+                  _buildTabs(),
+
+                  const SizedBox(height: 20),
+
+                  // Aba selecionada.
+                  if (selectedTab == 0)
+                    // Histórico = notas executadas
+                    // durante a performance atual.
+                    _buildHistory()
+                  else
+                    // Evolução = histórico das
+                    // execuções anteriores.
+                    _buildEvolution(historyAsync),
+
+                  const SizedBox(height: 30),
+
+                  // Reiniciar a mesma música (RU16).
+                  SizedBox(
+                    width: double.infinity,
+
+                    height: 55,
+
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PerformancePage(song: widget.song),
+                          ),
+                        );
+                      },
+
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        foregroundColor: Colors.white,
+                      ),
+
+                      icon: const Icon(Icons.replay),
+
+                      label: const Text('TOCAR NOVAMENTE'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Botão para voltar ao início.
+                  SizedBox(
+                    width: double.infinity,
+
+                    height: 55,
+
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.popUntil(context, (route) => route.isFirst);
+                      },
+
+                      child: const Text('INÍCIO'),
+                    ),
+                  ),
+                ],
               ),
-
-              const SizedBox(
-                height: 12,
-              ),
-
-              // Botão para voltar ao início.
-              SizedBox(
-
-                width:
-                    double.infinity,
-
-                height: 55,
-
-                child: ElevatedButton(
-
-                  onPressed: () {
-
-                    Navigator.popUntil(
-                      context,
-                      (route) =>
-                          route.isFirst,
-                    );
-                  },
-
-                  child:
-                      const Text('INÍCIO'),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -280,61 +224,32 @@ class _PerformanceResultPageState
   // -------------------------------------------------------
 
   Widget _buildTabs() {
-
     return Row(
       children: [
+        Expanded(child: _buildTab(title: 'Histórico', index: 0)),
 
-        Expanded(
-          child: _buildTab(
-            title: 'Histórico',
-            index: 0,
-          ),
-        ),
-
-        Expanded(
-          child: _buildTab(
-            title: 'Evolução',
-            index: 1,
-          ),
-        ),
+        Expanded(child: _buildTab(title: 'Evolução', index: 1)),
       ],
     );
   }
 
-  Widget _buildTab({
-    required String title,
-    required int index,
-  }) {
-
-    final selected =
-        selectedTab == index;
+  Widget _buildTab({required String title, required int index}) {
+    final selected = selectedTab == index;
 
     return GestureDetector(
-
       onTap: () {
-
         setState(() {
-
           selectedTab = index;
         });
       },
 
       child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
 
-        padding:
-            const EdgeInsets.symmetric(
-          vertical: 14,
-        ),
-
-        decoration:
-            BoxDecoration(
-
+        decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-
-              color: selected
-                  ? Colors.deepPurple
-                  : Colors.white24,
+              color: selected ? Colors.deepPurple : Colors.white24,
 
               width: 2,
             ),
@@ -342,20 +257,14 @@ class _PerformanceResultPageState
         ),
 
         child: Text(
-
           title,
 
-          textAlign:
-              TextAlign.center,
+          textAlign: TextAlign.center,
 
           style: TextStyle(
+            color: selected ? Colors.white : Colors.white54,
 
-            color: selected
-                ? Colors.white
-                : Colors.white54,
-
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
@@ -367,28 +276,21 @@ class _PerformanceResultPageState
   // -------------------------------------------------------
 
   Widget _buildHistory() {
-
     return Column(
-
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
 
       children: [
-
         const Text(
           'Notas executadas',
 
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
 
-        const SizedBox(
-          height: 12,
-        ),
+        const SizedBox(height: 12),
 
         // Notas da execução atual coloridas
         // sobre a partitura.
@@ -397,40 +299,22 @@ class _PerformanceResultPageState
           feedback: widget.feedback,
         ),
 
-        const SizedBox(
-          height: 12,
-        ),
+        const SizedBox(height: 12),
 
         // Legenda das cores.
         const Row(
-
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
 
           children: [
+            _Legend(color: Colors.green, label: 'Correto'),
 
-            _Legend(
-              color: Colors.green,
-              label: 'Correto',
-            ),
+            SizedBox(width: 20),
 
-            SizedBox(
-              width: 20,
-            ),
+            _Legend(color: Colors.orange, label: 'Aproximado'),
 
-            _Legend(
-              color: Colors.orange,
-              label: 'Aproximado',
-            ),
+            SizedBox(width: 20),
 
-            SizedBox(
-              width: 20,
-            ),
-
-            _Legend(
-              color: Colors.red,
-              label: 'Incorreto',
-            ),
+            _Legend(color: Colors.red, label: 'Incorreto'),
           ],
         ),
       ],
@@ -441,100 +325,66 @@ class _PerformanceResultPageState
   // ABA EVOLUÇÃO
   // -------------------------------------------------------
 
-  Widget _buildEvolution(
-    AsyncValue<List<PerformanceHistory>>
-        historyAsync,
-  ) {
-
+  Widget _buildEvolution(AsyncValue<List<PerformanceHistory>> historyAsync) {
     return Column(
-
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
 
       children: [
-
         const Text(
           'Histórico de execuções',
 
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
 
-        const SizedBox(
-          height: 16,
-        ),
+        const SizedBox(height: 16),
 
         // Trata os três estados possíveis
         // da consulta ao Firestore.
         historyAsync.when(
-
           // Enquanto busca os dados.
           loading: () {
-
-            return const Center(
-              child:
-                  CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           },
 
           // Se ocorrer algum erro.
-          error: (
-            error,
-            stackTrace,
-          ) {
-
+          error: (error, stackTrace) {
             return Text(
-
               'Erro ao carregar histórico: '
               '$error',
 
-              style: const TextStyle(
-                color: Colors.red,
-              ),
+              style: const TextStyle(color: Colors.red),
             );
           },
 
           // Quando os dados chegam.
           data: (history) {
-
             // Gráfico de evolução a partir da
             // 10ª execução da mesma música (RFA11).
             const minimum = 10;
 
-            final values = history.reversed
-                .map((h) => h.score)
-                .toList();
+            final values = history.reversed.map((h) => h.score).toList();
 
             return Column(
-
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
-
                 Container(
+                  padding: const EdgeInsets.all(16),
 
-                  padding:
-                      const EdgeInsets.all(16),
-
-                  margin: const EdgeInsets.only(
-                    bottom: 16,
-                  ),
+                  margin: const EdgeInsets.only(bottom: 16),
 
                   decoration: BoxDecoration(
                     color: const Color(0xFF191827),
-                    borderRadius:
-                        BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(16),
                   ),
 
                   child: history.length >= minimum
                       ? Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
                               'Evolução da pontuação',
@@ -544,9 +394,7 @@ class _PerformanceResultPageState
                               ),
                             ),
                             const SizedBox(height: 12),
-                            PerformanceChart(
-                              values: values,
-                            ),
+                            PerformanceChart(values: values),
                           ],
                         )
                       : Text(
@@ -560,9 +408,7 @@ class _PerformanceResultPageState
                         ),
                 ),
 
-                PerformanceHistoryList(
-                  history: history,
-                ),
+                PerformanceHistoryList(history: history),
               ],
             );
           },
@@ -573,59 +419,36 @@ class _PerformanceResultPageState
 
   // Destaque dos troféus conquistados.
   Widget _buildNewTrophies() {
-
     return InkWell(
-
-      borderRadius:
-          BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(16),
 
       onTap: () {
-
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => const GamificationPage(),
-          ),
+          MaterialPageRoute(builder: (_) => const GamificationPage()),
         );
       },
 
       child: Container(
-
-        padding:
-            const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
 
         decoration: BoxDecoration(
           color: Colors.amber.withValues(alpha: 0.12),
-          borderRadius:
-              BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.amber.withValues(alpha: 0.6),
-          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.amber.withValues(alpha: 0.6)),
         ),
 
         child: Row(
-
           children: [
+            const Icon(Icons.emoji_events, color: Colors.amber, size: 40),
 
-            const Icon(
-              Icons.emoji_events,
-              color: Colors.amber,
-              size: 40,
-            ),
-
-            const SizedBox(
-              width: 14,
-            ),
+            const SizedBox(width: 14),
 
             Expanded(
-
               child: Column(
-
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
 
                 children: [
-
                   Text(
                     widget.newTrophies.length == 1
                         ? 'Novo troféu conquistado!'
@@ -637,26 +460,17 @@ class _PerformanceResultPageState
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 4,
-                  ),
+                  const SizedBox(height: 4),
 
                   Text(
-                    widget.newTrophies
-                        .map((t) => t.titulo)
-                        .join(', '),
-                    style: const TextStyle(
-                      color: Colors.white70,
-                    ),
+                    widget.newTrophies.map((t) => t.titulo).join(', '),
+                    style: const TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
             ),
 
-            const Icon(
-              Icons.chevron_right,
-              color: Colors.white54,
-            ),
+            const Icon(Icons.chevron_right, color: Colors.white54),
           ],
         ),
       ),
@@ -664,63 +478,35 @@ class _PerformanceResultPageState
   }
 }
 
-
 // ---------------------------------------------------------
 // LEGENDA
 // ---------------------------------------------------------
 
-class _Legend
-    extends StatelessWidget {
-
+class _Legend extends StatelessWidget {
   final Color color;
 
   final String label;
 
-  const _Legend({
-    required this.color,
-    required this.label,
-  });
+  const _Legend({required this.color, required this.label});
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-
+  Widget build(BuildContext context) {
     return Row(
       children: [
-
         Container(
-
           width: 10,
 
           height: 10,
 
-          decoration:
-              BoxDecoration(
-
-            color: color,
-
-            shape:
-                BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
 
-        const SizedBox(
-          width: 5,
-        ),
+        const SizedBox(width: 5),
 
         Text(
-
           label,
 
-          style:
-              const TextStyle(
-
-            color:
-                Colors.white70,
-
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
       ],
     );

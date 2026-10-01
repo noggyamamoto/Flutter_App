@@ -348,6 +348,13 @@ class PerformanceNotifier
       status: PerformanceStatus.countdown,
       viewPhrase: fromPhrase,
       feedback: feedback,
+      streak: 0,
+      bestStreak: fromPhrase == 0 ? 0 : state.bestStreak,
+      clearJudgement: true,
+      phraseScores: {
+        for (final e in state.phraseScores.entries)
+          if (fromPhrase > 0 && e.key < fromPhrase) e.key: e.value,
+      },
       clearCursor: true,
       countInBeat: 1,
       countInBar: 1,
@@ -521,6 +528,7 @@ class PerformanceNotifier
     final missed = evaluator.advance(now);
 
     var feedback = state.feedback;
+    NoteJudgement? judgement;
 
     if (missed.isNotEmpty) {
       feedback = Map.of(feedback);
@@ -529,9 +537,17 @@ class PerformanceNotifier
           feedback[id] = comparison.feedback;
         }
       }
+      judgement = NoteJudgement(
+        serial: (state.judgement?.serial ?? 0) + 1,
+        noteId: missed.last.expected.scoreNoteIds.first,
+        feedback: NoteFeedback.missed,
+        label: NoteJudgement.labelFor(missed.last),
+      );
     }
 
     state = state.copyWith(
+      judgement: judgement,
+      streak: missed.isNotEmpty ? 0 : state.streak,
       cursorBeat: timeline.msToBeat(now.toDouble()),
       viewPhrase: phrase ?? state.viewPhrase,
       feedback: feedback,
@@ -565,6 +581,10 @@ class PerformanceNotifier
     final phrases = state.structure!.phrases;
 
     _evaluatedPhrases.add(phraseIndex);
+
+    state = state.copyWith(
+      phraseScores: {...state.phraseScores, phraseIndex: result.score},
+    );
 
     // RFA08: abaixo de 50% a execução trava e o aluno repete o trecho.
     if (result.failed) {
@@ -785,8 +805,30 @@ class PerformanceNotifier
       }
     }
 
+    // Sequência de acertos e selo da nota (somente no ataque).
+    var streak = state.streak;
+    NoteJudgement? judgement;
+
+    if (countNote) {
+      final result = comparison?.feedback ?? NoteFeedback.incorrect;
+      if (result == NoteFeedback.correct) {
+        streak++;
+      } else if (result != NoteFeedback.approximate) {
+        streak = 0;
+      }
+      judgement = NoteJudgement(
+        serial: (state.judgement?.serial ?? 0) + 1,
+        noteId: comparison?.expected.scoreNoteIds.first,
+        feedback: result,
+        label: NoteJudgement.labelFor(comparison),
+      );
+    }
+
     state = state.copyWith(
       feedback: feedback,
+      streak: streak,
+      bestStreak: max(streak, state.bestStreak),
+      judgement: judgement,
       notesPlayed: countNote ? state.notesPlayed + 1 : state.notesPlayed,
       lastPlayedMidi: countNote ? playedMidi : state.lastPlayedMidi,
       // Nota sem correspondência na partitura = nota errada.

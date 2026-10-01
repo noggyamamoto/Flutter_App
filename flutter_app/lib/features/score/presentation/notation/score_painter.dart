@@ -34,10 +34,14 @@ class ScorePainter extends CustomPainter {
   final Map<int, Color> noteColors;
   final ScorePalette palette;
 
+  // Fonte dos textos (null = padrão da plataforma).
+  final String? textFontFamily;
+
   ScorePainter({
     required this.layout,
     required this.noteColors,
     this.palette = const ScorePalette(),
+    this.textFontFamily,
   });
 
   @override
@@ -86,6 +90,7 @@ class ScorePainter extends CustomPainter {
           text: TextSpan(
             text: item.text,
             style: TextStyle(
+              fontFamily: textFontFamily,
               color: item.muted ? palette.muted : palette.ink,
               fontSize: item.size,
               fontStyle: item.italic ? FontStyle.italic : FontStyle.normal,

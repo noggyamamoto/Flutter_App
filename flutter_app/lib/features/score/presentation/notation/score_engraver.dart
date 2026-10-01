@@ -142,6 +142,9 @@ class ScoreEngraver {
   static const _leftMargin = 1.8; // espaço para a chave do piano
   static const _rightMargin = 0.6;
 
+  // Compressão máxima aceita do espaçamento ideal ao montar as linhas.
+  static const _squeeze = 1.12;
+
   // Distância mínima entre pautas e margens verticais (espaços).
   static const _minStaffGap = 5.0;
   static const _minTopRoom = 3.0;
@@ -179,20 +182,38 @@ class ScoreEngraver {
     final lines = <List<int>>[];
     var current = <int>[];
     var used = 0.0;
+    var usedMin = 0.0;
 
     for (final index in indexes) {
+      final a = analyses[index]!;
       final first = current.isEmpty;
-      final w = analyses[index]!.naturalWidth(first: first, fragmentStart: lines.isEmpty && first);
-      if (!first && used + w > available) {
+      final fragmentStart = lines.isEmpty && first;
+      final w = a.naturalWidth(first: first, fragmentStart: fragmentStart);
+      final wMin = a.minWidth(first: first, fragmentStart: fragmentStart);
+      // Aceita comprimir um pouco o espaçamento ideal antes de quebrar a
+      // linha (sem nunca ficar abaixo do espaçamento mínimo).
+      if (!first && (used + w > available * _squeeze || usedMin + wMin > available)) {
         lines.add(current);
         current = [index];
-        used = analyses[index]!.naturalWidth(first: true, fragmentStart: false);
+        used = a.naturalWidth(first: true, fragmentStart: false);
+        usedMin = a.minWidth(first: true, fragmentStart: false);
       } else {
         current.add(index);
         used += w;
+        usedMin += wMin;
       }
     }
     if (current.isNotEmpty) lines.add(current);
+
+    // Com a quantidade de linhas definida, redistribui os compassos para
+    // que as linhas fiquem com preenchimento parecido (evita um compasso
+    // sozinho e esticado na última linha).
+    final balanced = _balance(indexes, analyses, available, lines.length);
+    if (balanced != null) {
+      lines
+        ..clear()
+        ..addAll(balanced);
+    }
 
     // Verifica se cada linha cabe com o espaçamento mínimo.
     if (!force) {
@@ -233,6 +254,63 @@ class ScoreEngraver {
       systems: systems,
       noteBounds: noteBounds,
     );
+  }
+
+  // Partição ótima dos compassos em `count` linhas consecutivas, que
+  // minimiza a soma dos quadrados das sobras de cada linha.
+  List<List<int>>? _balance(
+    List<int> indexes,
+    Map<int, _MeasureAnalysis> analyses,
+    double available,
+    int count,
+  ) {
+    final n = indexes.length;
+    if (count <= 1 || count >= n) return null;
+
+    double? cost(int from, int to) {
+      var natural = 0.0;
+      var minimum = 0.0;
+      for (var i = from; i < to; i++) {
+        final a = analyses[indexes[i]]!;
+        final first = i == from;
+        final fragmentStart = from == 0 && first;
+        natural += a.naturalWidth(first: first, fragmentStart: fragmentStart);
+        minimum += a.minWidth(first: first, fragmentStart: fragmentStart);
+      }
+      if (minimum > available || natural > available * _squeeze) return null;
+      final slack = 1 - natural / available;
+      return slack * slack;
+    }
+
+    // best[k][i] = menor custo para os i primeiros compassos em k linhas.
+    final inf = double.infinity;
+    final best = List.generate(count + 1, (_) => List.filled(n + 1, inf));
+    final cut = List.generate(count + 1, (_) => List.filled(n + 1, -1));
+    best[0][0] = 0;
+    for (var k = 1; k <= count; k++) {
+      for (var i = 1; i <= n; i++) {
+        for (var j = k - 1; j < i; j++) {
+          if (best[k - 1][j] == inf) continue;
+          final c = cost(j, i);
+          if (c == null) continue;
+          final total = best[k - 1][j] + c;
+          if (total < best[k][i]) {
+            best[k][i] = total;
+            cut[k][i] = j;
+          }
+        }
+      }
+    }
+    if (best[count][n] == inf) return null;
+
+    final result = <List<int>>[];
+    var end = n;
+    for (var k = count; k >= 1; k--) {
+      final start = cut[k][end];
+      result.insert(0, indexes.sublist(start, end));
+      end = start;
+    }
+    return result;
   }
 
   // Distâncias verticais usadas pelo construtor de sistemas.
@@ -666,7 +744,7 @@ class _MeasureAnalysis {
   }
 
   // Distância ideal entre ataques, proporcional (logarítmica) à duração.
-  static double idealGap(double beats) => 1.7 + 1.25 * (math.log(1 + beats / 0.25) / math.ln2);
+  static double idealGap(double beats) => 1.3 + 1.05 * (math.log(1 + beats / 0.25) / math.ln2);
 
   double get _padding => 1.3;
 
