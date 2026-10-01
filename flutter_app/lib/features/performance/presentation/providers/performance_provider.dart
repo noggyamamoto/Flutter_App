@@ -194,8 +194,8 @@ class PerformanceNotifier
 
       // Carrega e interpreta a partitura MusicXML.
       final score =
-          await ref.read(getMusicScoreProvider)(
-        song.partitura,
+          await ref.read(getMusicScoreProvider).firstAvailable(
+        song.partituraCandidates,
       );
 
       // Divide em frases e extrai a melodia avaliada.

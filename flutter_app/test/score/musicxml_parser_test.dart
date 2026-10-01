@@ -1,7 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter_app/features/score/domain/entities/musical_score.dart';
 import 'package:flutter_app/features/score/domain/services/musicxml_parser.dart';
 import 'package:flutter_app/features/score/domain/services/score_analyzer.dart';
+import 'package:archive/archive.dart';
+import 'package:flutter_app/features/score/data/datasources/score_local_datasource_impl.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _simpleXml = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -49,7 +52,7 @@ void main() {
       expect(score.measures, hasLength(2));
       expect(score.beatsPerBar, 3);
       expect(score.measures[0].fifths, 1);
-      expect(score.measures[0].clefs, {1: 'G', 2: 'F'});
+      expect(score.measures[0].clefs, {1: Clef.treble, 2: Clef.bass});
       expect(score.measures[1].startBeat, 3);
 
       final m1 = score.measures[0].notes;
@@ -90,7 +93,7 @@ void main() {
 
     test('carrega todas as partituras do repertório', () {
       final dir = Directory('assets/partituras');
-      final files = dir.listSync().whereType<File>().where((f) => f.path.endsWith('.xml'));
+      final files = dir.listSync().whereType<File>().where((f) => f.path.endsWith('.xml') || f.path.endsWith('.musicxml'));
       expect(files, isNotEmpty);
 
       for (final file in files) {
@@ -115,6 +118,76 @@ void main() {
             'extensão ${structure.expectedNotes.map((n) => n.midi).reduce((a, b) => a < b ? a : b)}'
             '-${structure.expectedNotes.map((n) => n.midi).reduce((a, b) => a > b ? a : b)}');
       }
+    });
+
+    test('calcula acidentes ausentes pela armadura e pelo compasso', () {
+      const xml = '''<score-partwise version="4.0"><part-list><score-part id="P1"/></part-list>
+<part id="P1"><measure number="1">
+<attributes><divisions>1</divisions><key><fifths>1</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>
+<note><pitch><step>F</step><alter>1</alter><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+<note><pitch><step>F</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+<note><pitch><step>F</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+<note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>1</duration><type>quarter</type></note>
+</measure><measure number="2">
+<note><pitch><step>C</step><alter>1</alter><octave>5</octave></pitch><duration>4</duration><type>whole</type></note>
+</measure></part></score-partwise>''';
+      final score = MusicXmlParser().parse(xml);
+      final m1 = score.measures[0].notes;
+      expect(m1[0].accidental, isNull); // F# já está na armadura
+      expect(m1[1].accidental, 'natural'); // Fá natural
+      expect(m1[2].accidental, isNull); // o bequadro vale até o fim do compasso
+      expect(m1[3].accidental, 'sharp');
+      expect(score.measures[1].notes[0].accidental, 'sharp'); // novo compasso
+    });
+
+    test('claves com linha, transposição e mudança no meio do compasso', () {
+      const xml = '''<score-partwise version="4.0"><part-list><score-part id="P1"/></part-list>
+<part id="P1"><measure number="1">
+<attributes><divisions>1</divisions><time><beats>2</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+<attributes><clef><sign>C</sign><line>3</line></clef></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+</measure></part></score-partwise>''';
+      final score = MusicXmlParser().parse(xml);
+      final notes = score.measures[0].notes;
+      expect(notes[0].clef, const Clef('G', 2, octaveChange: -1));
+      expect(notes[1].clef, const Clef('C', 3));
+      expect(score.measures[0].clefChanges.single.beat, 1);
+      // Linha inferior: E3 na clave de sol 8vb, F3 na clave de dó (alto).
+      expect(notes[0].clef.bottomLineDiatonic, 3 * 7 + 2);
+      expect(notes[1].clef.bottomLineDiatonic, 3 * 7 + 3);
+      expect(Clef.bass.bottomLineDiatonic, 2 * 7 + 4); // G2
+    });
+
+    test('lê MusicXML compactado (.mxl)', () {
+      final xml = File('assets/partituras/alecrim.musicxml').readAsBytesSync();
+      const container = '''<?xml version="1.0"?><container><rootfiles>
+<rootfile full-path="score.musicxml" media-type="application/vnd.recordare.musicxml+xml"/>
+</rootfiles></container>''';
+      final archive = Archive()
+        ..addFile(ArchiveFile.string('META-INF/container.xml', container))
+        ..addFile(ArchiveFile.bytes('score.musicxml', xml));
+      final bytes = ZipEncoder().encode(archive);
+      final text = ScoreLocalDataSourceImpl.decodeScore(bytes, 'alecrim.mxl');
+      final score = MusicXmlParser().parse(text);
+      expect(score.title.trim(), 'Alecrim');
+      expect(score.measures, hasLength(41));
+    });
+
+    test('partitura do Flat (alecrim.musicxml)', () {
+      final score = MusicXmlParser().parse(
+        File('assets/partituras/alecrim.musicxml').readAsStringSync(),
+      );
+      expect(score.tempo, 100);
+      expect(score.staves, 2);
+      expect(score.measures[0].clefs, {1: Clef.treble, 2: Clef.bass});
+      // Compasso 13: o segundo Dó# 4 da mão esquerda não repete o sustenido.
+      final cSharps = score.measures[12].notes.where((n) => n.staff == 2 && n.midi == 61).toList();
+      expect(cSharps, hasLength(2));
+      expect(cSharps[0].accidental, 'sharp');
+      expect(cSharps[1].accidental, isNull);
+      // Fá# da armadura não recebe acidente.
+      expect(score.notes.where((n) => n.step == 'F' && n.alter == 1).every((n) => n.accidental == null), isTrue);
     });
   });
 }

@@ -4,7 +4,7 @@ import '../../domain/services/musicxml_parser.dart';
 import '../datasources/score_local_datasource.dart';
 
 class ScoreRepositoryImpl implements ScoreRepository {
-  // Pasta dos arquivos MusicXML dentro dos assets.
+  // Pasta dos arquivos MusicXML (.musicxml, .xml, .mxl) dentro dos assets.
   static const basePath = 'assets/partituras';
 
   final ScoreLocalDataSource dataSource;

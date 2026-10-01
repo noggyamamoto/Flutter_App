@@ -23,7 +23,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _FileScoreRepository implements ScoreRepository {
   @override
   Future<MusicalScore> getScore(String fileName) async {
-    return MusicXmlParser().parse(File('assets/partituras/$fileName').readAsStringSync());
+    final file = File('assets/partituras/$fileName');
+    if (!file.existsSync()) throw Exception('não encontrada: $fileName');
+    return MusicXmlParser().parse(file.readAsStringSync());
   }
 }
 

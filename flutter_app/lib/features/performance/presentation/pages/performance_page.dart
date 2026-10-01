@@ -358,9 +358,6 @@ class _PerformancePageState
                   noteColors:
                       FeedbackColors.map(state.feedback),
 
-                  evaluatedNoteIds:
-                      structure.evaluatedNoteIds,
-
                   cursorBeat:
                       state.cursorBeat,
 

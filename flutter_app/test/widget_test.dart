@@ -103,7 +103,6 @@ void main() {
                   child: ScoreDisplay(
                     score: structure.score,
                     measureIndexes: phrase.measureIndexes,
-                    evaluatedNoteIds: structure.evaluatedNoteIds,
                     cursorBeat: phrase.startBeat + 1,
                   ),
                 ),
