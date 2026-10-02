@@ -28,6 +28,9 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
   DateTime _lastPong = DateTime.now();
   bool _sessionConfirmed = false;
 
+  // Identificador da execução atual (1..255), ecoado nas batidas.
+  int _sessionId = 0;
+
   ConnectionRemoteDataSourceImpl({UdpTransport? transport})
       : _transport = transport ?? UdpTransport();
 
@@ -192,6 +195,9 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
           ),
         );
       case BeatPacket():
+        // Batida de uma execução anterior (atrasada na rede): descarta, senão
+        // o relógio do app seria alinhado a uma sessão que já acabou.
+        if (packet.sessionId != 0 && packet.sessionId != _sessionId) return;
         _sessionConfirmed = true;
         _events.add(
           BeatEvent(
@@ -227,9 +233,11 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
     final device = _device;
     if (device == null) throw Exception('Nenhum dispositivo conectado.');
 
-    // O início zera o relógio do dispositivo, por isso só é reenviado se
-    // a primeira batida não chegar (pacote perdido).
+    // O início zera o relógio do dispositivo. O reenvio (primeira batida
+    // não chegou) usa o mesmo id: o firmware ignora a repetição e o relógio
+    // não é zerado de novo, mantendo o app e o dispositivo sincronizados.
     _sessionConfirmed = false;
+    _sessionId = _sessionId % 255 + 1;
     for (var attempt = 0; attempt < 3; attempt++) {
       _transport.send(
         _protocol.encodeSessionStart(
@@ -237,6 +245,7 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
           beatsPerBar: config.beatsPerBar,
           countInBars: config.countInBars,
           flags: _flags(config),
+          sessionId: _sessionId,
         ),
         device.address,
         device.port,
@@ -259,12 +268,16 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
   }
 
   @override
-  Future<void> setTempo(int bpm) async {
+  Future<void> setTempo(int bpm, {int atBeat = 0}) async {
     final device = _device;
     if (device == null) return;
     // Idempotente: repetir não altera o resultado.
     for (var i = 0; i < 2; i++) {
-      _transport.send(_protocol.encodeSetTempo(bpm), device.address, device.port);
+      _transport.send(
+        _protocol.encodeSetTempo(bpm, atBeat: atBeat),
+        device.address,
+        device.port,
+      );
     }
   }
 

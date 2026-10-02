@@ -20,6 +20,12 @@ class HistoryRemoteDataSourceImpl
   }) async {
 
     // Busca as execuções no Firestore.
+    //
+    // Somente filtros de igualdade: combinados com orderBy('dataHora') eles
+    // exigiriam um índice composto (idUsuario + idPartitura + dataHora) que
+    // o projeto não tem, e a consulta falhava (FAILED_PRECONDITION) – era o
+    // erro da aba Evolução. O filtro por idUsuario também é exigido pela
+    // regra de leitura de "execucoes".
     final snapshot = await firestore
         .collection('execucoes')
 
@@ -35,18 +41,12 @@ class HistoryRemoteDataSourceImpl
           isEqualTo: songId,
         )
 
-        // Mais recentes primeiro.
-        .orderBy(
-          'dataHora',
-          descending: true,
-        )
-
         // Executa a consulta.
         .get();
 
     // Converte cada documento do Firestore
     // para PerformanceHistoryModel.
-    return snapshot.docs.map((doc) {
+    final history = snapshot.docs.map((doc) {
 
       // Copia os dados do documento.
       final data = <String, dynamic>{
@@ -63,6 +63,11 @@ class HistoryRemoteDataSourceImpl
       );
 
     }).toList();
+
+    // Mais recentes primeiro (ordenação feita no app).
+    history.sort((a, b) => b.date.compareTo(a.date));
+
+    return history;
   }
 
   @override

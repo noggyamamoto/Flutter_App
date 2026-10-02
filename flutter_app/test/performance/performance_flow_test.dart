@@ -180,19 +180,24 @@ void main() {
     await notifier.start();
 
     var minBpm = 240;
-    String? message;
+    String? messageWhileRunning;
     final deadline = DateTime.now().add(const Duration(seconds: 40));
     while (DateTime.now().isBefore(deadline)) {
       final s = container.read(performanceProvider);
       if (s.bpm < minBpm) minBpm = s.bpm;
-      if (s.message != null && s.message!.contains('reduzido')) message = s.message;
+      // Nenhum aviso sobre a partitura durante a execução (o percentual de
+      // cada trecho cobria o início do trecho seguinte).
+      if (s.status == PerformanceStatus.running && s.message != null) {
+        messageWhileRunning = s.message;
+      }
       if (s.status == PerformanceStatus.finished || s.status == PerformanceStatus.phraseFailed) break;
       await Future<void>.delayed(const Duration(milliseconds: 50));
     }
 
     // ignore: avoid_print
-    print('mensagem: $message | menor BPM: $minBpm');
-    expect(message, isNotNull);
+    print('menor BPM: $minBpm');
+    expect(messageWhileRunning, isNull);
+    // RU12: a redução aparece no indicador de andamento.
     expect(minBpm, lessThan(240));
   }, timeout: const Timeout(Duration(seconds: 60)));
 }

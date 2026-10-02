@@ -543,7 +543,8 @@ sequenceDiagram
 
     Aluno->>UI: INICIAR
     UI->>N: start(fromPhrase)
-    N->>Dev: SESSION_START (BPM, compasso, 2 compassos de contagem)
+    N->>Dev: SESSION_START (BPM inteiro do metrônomo, compasso, 2 compassos, session_id)
+    Note over N,Dev: reenvio com o mesmo session_id não zera o relógio do firmware
     loop contagem de entrada (RFA05)
         Dev-->>N: BEAT (countIn)
         N-->>UI: contagem 1..4
@@ -565,10 +566,17 @@ sequenceDiagram
     alt pontuação < 50 % (RFA08)
         N-->>UI: tela "Vamos praticar este trecho!"
     else instável (RFA09)
-        N->>Dev: SET_TEMPO (−10 %) ou sugestão ao aluno
+        N->>Dev: SET_TEMPO (−10 %, at_beat = batida do início da frase) ou sugestão nos controles
     end
     N-->>UI: resultado final (RFA10)
 ```
+
+#### Sincronismo do BPM com o firmware
+
+- O metrônomo do dispositivo bate na unidade de tempo do compasso (em 6/8, a colcheia) com um **BPM inteiro**. O app envia esse valor no `SESSION_START` e calcula a contagem e o horário de cada nota com **o mesmo inteiro** (`PerformanceTimeline.metronomeBpmFor`). Antes, a linha do tempo usava o BPM em semínimas e, em 2/2 a 75 BPM (37,5 → 38), a partitura se afastava ~170 ms do clique a cada 8 tempos.
+- O `SESSION_START` leva um `session_id`. Se a primeira batida não chega e o comando é reenviado, o firmware ignora a repetição em vez de zerar o relógio de novo; batidas de uma execução anterior são descartadas.
+- O `SET_TEMPO` informa a batida (`at_beat`, contagem incluída) em que o novo andamento começa. Ele é enviado no momento em que a redução é decidida e reenviado meio tempo antes da frase; o firmware troca o BPM exatamente na batida do início da frase, mesmo que o pacote chegue antes ou que o primeiro envio se perca.
+- As notas são avaliadas pelo carimbo de tempo do próprio dispositivo; o relógio local só posiciona o cursor e é alinhado pela menor latência observada nas batidas.
 
 ### 5.4 Avaliação de uma nota
 
@@ -658,7 +666,7 @@ A tela de execução segue o padrão dos aplicativos de prática musical, manten
 │ └───────────────────────────────────────────┘ │
 │ ┃Próxima nota: Ré 5  ┃Você tocou: Dó 5        │  guia da nota
 │ ▕▏▕▏▕█▏▕▏▕▏▕▏▕█▏▕▏                            │  teclado (esperada = violeta, tocada = cor do feedback)
-│ 6 notas tocadas                     [■ PARAR] │  controles
+│ 6 notas tocadas                     [■ PARAR] │  controles (ou "Reduzir para 81 BPM")
 └───────────────────────────────────────────────┘
 ```
 
@@ -670,7 +678,8 @@ A tela de execução segue o padrão dos aplicativos de prática musical, manten
 | Selo da nota | "Perfeito!", "Atrasado", "Adiantado", "Quase!", "Nota errada", "Perdeu" ou "Nota extra", animado sobre a nota |
 | Cursor | Linha vertical que acompanha o tempo; a próxima nota recebe um halo violeta |
 | Guia | Próxima nota esperada e última nota tocada, com teclado de referência |
-| Resultado do trecho | Banner com 1 a 3 estrelas e a porcentagem; sugestão de BPM quando instável |
+| Resultado do trecho | Sem aviso sobre a partitura (cobria o início do trecho seguinte): a porcentagem aparece na cor do segmento do progresso por trecho |
+| Andamento reduzido (RU12/RFA09) | Com ajuste automático, o BPM do HUD fica âmbar com uma seta ↓ quando o trecho mais lento começa; no ajuste manual, o botão "Reduzir para N BPM" substitui o contador de notas nos controles, abaixo da partitura |
 | Trecho reprovado | Tela de incentivo com anel da pontuação, altura, ritmo, notas perdidas e "Repetir trecho" |
 | Resultado final | Estrelas, mensagem de incentivo, precisão, notas tocadas, conceito (A+ a F), maior sequência, altura/ritmo por trecho e evolução |
 
@@ -749,8 +758,9 @@ flutter test
 | Parser MusicXML | `test/score/musicxml_parser_test.dart` | Atributos, vozes, acordes, ligaduras, acidentes calculados, claves, `.mxl`, todo o repertório |
 | Renderização | `test/score/score_render_test.dart` | Todo o repertório em 5 larguras: nenhum elemento fora da área, todas as notas posicionadas, desenho sem exceções |
 | Avaliação | `test/score/performance_evaluator_test.dart` | Linha do tempo e avaliação nota a nota/por frase |
-| Fluxo de execução | `test/performance/performance_flow_test.dart` | Música inteira com o dispositivo simulado, reprovação de trecho, redução automática de BPM, sequência e notas por trecho |
-| Telas | `test/performance/performance_screens_test.dart` | Tela de execução em celular, celular deitado, tablet e web, pronta e em execução |
+| Fluxo de execução | `test/performance/performance_flow_test.dart` | Música inteira com o dispositivo simulado, reprovação de trecho, redução automática de BPM (sem avisos sobre a partitura), sequência e notas por trecho |
+| Sincronismo | `test/performance/performance_timeline_sync_test.dart`, `test/connection/session_sync_test.dart` | BPM inteiro do metrônomo na linha do tempo (4/4, 6/8, 2/2), `session_id` mantido no reenvio, batidas antigas descartadas, `at_beat` do `SET_TEMPO` |
+| Telas | `test/performance/performance_screens_test.dart` | Tela de execução em celular, celular deitado, tablet e web: pronta, em execução e com sugestão de BPM (nada sobre a partitura) |
 | Widgets | `test/widget_test.dart` | Partitura em todas as frases/larguras, conexão, HUD e tela de incentivo |
 | Integração UDP | `test/connection/udp_device_test.dart` | Protocolo contra o dispositivo falso do firmware |
 | Integração WebSocket | `test/connection/websocket_device_test.dart` | App web (Chrome) contra o dispositivo falso via WebSocket |
@@ -779,10 +789,22 @@ flutter test --platform chrome --dart-define=WS_DEVICE=true test/connection/webs
 
 | Coleção | Campos |
 |---|---|
+| `usuarios/{uid}` | `id`, `nome`, `email`, `dataCriacao` e `trofeus` — mapa `idTrofeu → {idTrofeu, idPartitura, dataConquista}` com as conquistas |
 | `partituras` | `titulo`, `compositor`, `nivelDificuldade` (fácil/médio/difícil), `bpmPadrao`, `arquivoMidi`, `arquivoPartitura` (opcional) |
-| `execucoes` | usuário, `idPartitura`, `dataHora`, `status`, `bpmInicial`, `bpmFinal`, `pontuacaoFinal`, `pontuacaoAltura`, `pontuacaoRitmo`, `notasTocadas`, `notasCorretas` |
-| `trofeus` (opcional) | `titulo`, `descricao`, `icone`, `criterio`, `meta` — vazio = catálogo padrão do app |
-| `usuarios/{uid}/trofeus` | troféus conquistados (as regras de segurança devem permitir leitura/escrita pelo próprio usuário) |
+| `execucoes` | `idUsuario`, `idPartitura`, `dataHora`, `status`, `bpmInicial`, `bpmFinal`, `pontuacaoFinal`, `pontuacaoAltura`, `pontuacaoRitmo`, `notasTocadas`, `notasCorretas` |
+| `trofeus` (opcional) | `titulo`, `descricao`, `icone`, `criterio`, `meta` — sem regra de leitura (ou vazio), o app usa o catálogo padrão |
+
+As regras de segurança do projeto estão em [`flutter_app/firestore.rules`](flutter_app/firestore.rules) e o app foi ajustado a elas:
+
+| Regra | Consequência no app |
+|---|---|
+| `usuarios/{userId}`: só o próprio documento | As conquistas ficam no campo `trofeus` do documento do usuário (gravadas com `merge`). A subcoleção `usuarios/{uid}/trofeus` usada antes caía na regra final (`allow read, write: if false`) e a tela de troféus falhava com *permission-denied* |
+| `execucoes`: leitura só com `idUsuario == uid` | Toda consulta filtra por `idUsuario` |
+| Demais coleções bloqueadas | O catálogo `trofeus` não é lido; vale o catálogo padrão do app |
+
+A aba **Evolução** consultava `execucoes` com dois filtros de igualdade e `orderBy('dataHora')`, combinação que exige um índice composto inexistente no projeto (*FAILED_PRECONDITION*). A consulta agora usa só as igualdades e ordena no app. Depois de salvar a execução, o progresso dos troféus é recalculado; uma falha na verificação dos troféus não é mais reportada como falha ao salvar a execução.
+
+Verificação das regras no emulador (Firebase CLI + `@firebase/rules-unit-testing`): caminho antigo dos troféus negado; campo `trofeus` com `merge` permitido e preservando o perfil; consultas de execuções por usuário e por música permitidas; consulta sem filtro de usuário e escrita em nome de outro usuário negadas.
 
 ---
 

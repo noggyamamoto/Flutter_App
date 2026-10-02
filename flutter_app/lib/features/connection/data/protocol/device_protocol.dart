@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 // Protocolo UDP binário entre o app e o dispositivo embarcado.
 //
-// Espelho do arquivo MicroDetection/src/protocol.h do repositório
+// Espelho do arquivo MicroDetection/include/protocol.h do repositório
 // firmware_I2S. Todos os pacotes começam com um cabeçalho de 12 bytes
 // em little-endian:
 //
@@ -97,25 +97,32 @@ class DeviceProtocol {
     return _bytes(data);
   }
 
+  // `sessionId` (1..255) identifica a execução: o dispositivo ignora um
+  // reenvio com o mesmo id, sem zerar o relógio da sessão de novo.
   Uint8List encodeSessionStart({
     required int bpm,
     required int beatsPerBar,
     required int countInBars,
     required int flags,
+    int sessionId = 0,
   }) {
     final data = _packet(sessionStart, 8);
     data.setUint16(12, bpm, Endian.little);
     data.setUint8(14, beatsPerBar);
     data.setUint8(15, countInBars);
     data.setUint8(16, flags);
+    data.setUint8(17, sessionId);
     return _bytes(data);
   }
 
   Uint8List encodeSessionStop() => _bytes(_packet(sessionStop, 0));
 
-  Uint8List encodeSetTempo(int bpm) {
+  // `atBeat`: índice da batida (desde o início da sessão, contagem
+  // incluída) a partir da qual o novo andamento vale. 0 = próxima batida.
+  Uint8List encodeSetTempo(int bpm, {int atBeat = 0}) {
     final data = _packet(setTempo, 4);
     data.setUint16(12, bpm, Endian.little);
+    data.setUint16(14, atBeat.clamp(0, 0xFFFF), Endian.little);
     return _bytes(data);
   }
 
@@ -211,6 +218,7 @@ class DeviceProtocol {
           countIn: data.getUint8(13) == 1,
           barIndex: data.getUint16(14, Endian.little),
           bpm: data.getUint16(16, Endian.little),
+          sessionId: data.getUint8(18),
         );
 
       default:
@@ -329,6 +337,9 @@ class BeatPacket extends DevicePacket {
   final int barIndex;
   final int bpm;
 
+  // Eco do SESSION_START (0 = firmware antigo ou sessão local).
+  final int sessionId;
+
   const BeatPacket({
     required super.sequence,
     required super.timestampMs,
@@ -336,5 +347,6 @@ class BeatPacket extends DevicePacket {
     required this.countIn,
     required this.barIndex,
     required this.bpm,
+    this.sessionId = 0,
   });
 }

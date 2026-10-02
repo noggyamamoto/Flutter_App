@@ -122,7 +122,8 @@ class ConnectionRepositoryImpl implements ConnectionRepository {
   Future<void> stopSession() async => _active?.stopSession();
 
   @override
-  Future<void> setTempo(int bpm) async => _active?.setTempo(bpm);
+  Future<void> setTempo(int bpm, {int atBeat = 0}) async =>
+      _active?.setTempo(bpm, atBeat: atBeat);
 
   @override
   Future<void> configure(SessionConfig config) async => _active?.configure(config);

@@ -28,7 +28,9 @@ abstract class ConnectionRepository {
   // Controle da execução.
   Future<void> startSession(SessionConfig config);
   Future<void> stopSession();
-  Future<void> setTempo(int bpm);
+  // Novo andamento a partir da batida `atBeat` (índice desde o início da
+  // sessão, contagem incluída). 0 = na próxima batida.
+  Future<void> setTempo(int bpm, {int atBeat = 0});
   Future<void> configure(SessionConfig config);
 
   // Informa ao dispositivo simulado quais notas tocar (modo demonstração).

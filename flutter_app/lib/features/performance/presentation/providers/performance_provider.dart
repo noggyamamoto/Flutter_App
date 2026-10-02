@@ -141,10 +141,9 @@ class PerformanceNotifier
   final Set<int> _evaluatedPhrases = {};
   int _nextPhrase = 0;
 
-  // Mudança de andamento agendada (frase -> BPM) e se já foi enviada.
+  // Mudança de andamento agendada (frase) e se o reenvio já foi feito.
   int? _tempoPhrase;
-  int? _tempoBpm;
-  bool _tempoSent = false;
+  bool _tempoResent = false;
 
   // Áudio da música guia / cliques por frase.
   PerformanceAudio? _audio;
@@ -329,18 +328,23 @@ class PerformanceNotifier
     final score = structure.score;
     final bpm = state.bpm;
 
+    // BPM inteiro do metrônomo do dispositivo. A contagem e o horário de
+    // cada nota são calculados com exatamente este valor, o mesmo que o
+    // firmware usa ao iniciar a coleta (sincronismo app × firmware).
+    final metronomeBpm = PerformanceTimeline.metronomeBpmFor(bpm, score.beatType);
+
     _timeline = PerformanceTimeline(
       phrases: structure.phrases,
       startPhrase: fromPhrase,
-      countInMs: countInBars * score.barBeats * 60000 / bpm,
+      countInMs: countInBars * score.beatsPerBar * 60000 / metronomeBpm,
       initialBpm: bpm,
+      beatType: score.beatType,
     );
 
     _applyTimings(fromPhrase);
 
     _nextPhrase = fromPhrase;
     _tempoPhrase = null;
-    _tempoBpm = null;
     _audioPhrase = -1;
     _phraseAudio.clear();
 
@@ -381,7 +385,7 @@ class PerformanceNotifier
 
       await repository.startSession(
         SessionConfig(
-          bpm: _metronomeBpm(bpm),
+          bpm: metronomeBpm,
           beatsPerBar: score.beatsPerBar,
           countInBars: countInBars,
           metronomeSound: _settings.metronomeSound,
@@ -418,7 +422,7 @@ class PerformanceNotifier
 
     final beatType = state.structure?.score.beatType ?? 4;
 
-    return max(20, (quarterBpm * beatType / 4).round());
+    return PerformanceTimeline.metronomeBpmFor(quarterBpm, beatType);
   }
 
 
@@ -513,14 +517,15 @@ class PerformanceNotifier
       _playPhraseAudio(phrase);
     }
 
-    // Envia a mudança de andamento meio tempo antes da frase.
-    if (_tempoPhrase != null && !_tempoSent) {
+    // Reenvia a mudança de andamento meio tempo antes da frase (o primeiro
+    // envio, no agendamento, pode se perder na rede UDP).
+    if (_tempoPhrase != null && !_tempoResent) {
 
-      final halfBeat = 30000 / timeline.bpmOf(_tempoPhrase!);
+      final halfBeat = 30000 / timeline.metronomeBpmOf(_tempoPhrase!);
 
       if (now >= timeline.phraseStartMs(_tempoPhrase!) - halfBeat) {
-        _tempoSent = true;
-        ref.read(connectionRepositoryProvider).setTempo(_metronomeBpm(_tempoBpm!));
+        _tempoResent = true;
+        _sendTempo();
       }
     }
 
@@ -602,9 +607,8 @@ class PerformanceNotifier
       return true;
     }
 
-    String message =
-        'Trecho ${phraseIndex + 1}: ${result.score.round()}%';
-
+    // Sem aviso sobre a partitura ao fim de cada trecho: o percentual fica
+    // na barra de progresso por trechos e não cobre o início do seguinte.
     int? suggestion;
 
     // RFA09 / RU12: trecho aprovado, mas instável.
@@ -619,29 +623,18 @@ class PerformanceNotifier
       if (newBpm < state.bpm && target < phrases.length) {
 
         if (_settings.autoTempo) {
-
+          // O novo BPM aparece no indicador de andamento (com a seta de
+          // redução) quando o trecho começa.
           _scheduleTempo(target, newBpm);
-
-          message = 'Trecho ${phraseIndex + 1} com instabilidade: '
-              'andamento reduzido para $newBpm BPM a partir do próximo trecho.';
-
         } else {
-
+          // Sugestão exibida nos controles, abaixo da partitura.
           suggestion = newBpm;
-
-          message = 'Trecho ${phraseIndex + 1} com instabilidade. '
-              'Que tal diminuir para $newBpm BPM?';
         }
-      } else {
-
-        message = 'Trecho ${phraseIndex + 1} com instabilidade. '
-            'Na próxima vez, experimente um andamento menor.';
       }
     }
 
     state = state.copyWith(
       lastPhrase: result,
-      message: message,
       suggestedBpm: suggestion,
       clearSuggestion: suggestion == null,
       precision: _precision(),
@@ -673,10 +666,7 @@ class PerformanceNotifier
 
       _scheduleTempo(target, bpm);
 
-      state = state.copyWith(
-        clearSuggestion: true,
-        message: 'Andamento de $bpm BPM a partir do próximo trecho.',
-      );
+      state = state.copyWith(clearSuggestion: true);
 
     } else {
 
@@ -691,6 +681,26 @@ class PerformanceNotifier
   }
 
 
+  // Envia o andamento da frase agendada com a batida exata em que ele
+  // começa (contagem incluída), a mesma posição usada pela linha do tempo.
+  void _sendTempo() {
+
+    final timeline = _timeline;
+    final phrase = _tempoPhrase;
+    final structure = state.structure;
+
+    if (timeline == null || phrase == null || structure == null) return;
+
+    final atBeat = countInBars * structure.score.beatsPerBar +
+        timeline.metronomeBeatsBetween(timeline.startPhrase, phrase);
+
+    ref.read(connectionRepositoryProvider).setTempo(
+          timeline.metronomeBpmOf(phrase),
+          atBeat: atBeat,
+        );
+  }
+
+
   void _scheduleTempo(int phraseIndex, int bpm) {
 
     final timeline = _timeline!;
@@ -700,8 +710,11 @@ class PerformanceNotifier
     _applyTimings(phraseIndex);
 
     _tempoPhrase = phraseIndex;
-    _tempoBpm = bpm;
-    _tempoSent = false;
+    _tempoResent = false;
+
+    // Envia já: o dispositivo guarda o novo BPM e troca exatamente na
+    // batida do início da frase.
+    _sendTempo();
 
     // Áudio das frases seguintes precisa ser gerado no novo andamento.
     _phraseAudio.removeWhere((p, _) => p >= phraseIndex);

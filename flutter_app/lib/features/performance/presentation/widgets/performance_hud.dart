@@ -230,12 +230,16 @@ class TempoPill extends StatelessWidget {
   final int beatsPerBar;
   final bool showBeats;
 
+  // Andamento reduzido em relação ao início (RU12): seta para baixo.
+  final bool slowedDown;
+
   const TempoPill({
     super.key,
     required this.bpm,
     required this.beatInBar,
     required this.beatsPerBar,
     this.showBeats = true,
+    this.slowedDown = false,
   });
 
   @override
@@ -244,9 +248,20 @@ class TempoPill extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          '$bpm',
-          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (slowedDown)
+              const Icon(Icons.south_rounded, color: Colors.amber, size: 16),
+            Text(
+              '$bpm',
+              style: TextStyle(
+                color: slowedDown ? Colors.amber : Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 6),
         if (showBeats)
