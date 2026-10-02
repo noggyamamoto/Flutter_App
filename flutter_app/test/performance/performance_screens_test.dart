@@ -139,21 +139,29 @@ void main() {
   };
 
   for (final entry in sizes.entries) {
-    for (final status in ['pronto', 'execucao']) {
+    for (final status in ['pronto', 'execucao', 'sugestao']) {
       testWidgets('tela de execução – ${entry.key} – $status', (tester) async {
         tester.view.physicalSize = entry.value * 2;
         tester.view.devicePixelRatio = 2;
         addTearDown(tester.view.reset);
 
         final running = _runningState();
-        final state = status == 'pronto'
-            ? PerformanceState(
-                status: PerformanceStatus.ready,
-                structure: running.structure,
-                bpm: 100,
-                initialBpm: 100,
-              )
-            : running;
+        final state = switch (status) {
+          'pronto' => PerformanceState(
+              status: PerformanceStatus.ready,
+              structure: running.structure,
+              bpm: 100,
+              initialBpm: 100,
+            ),
+          // Trecho instável com ajuste manual (RFA09): a sugestão fica nos
+          // controles e nenhum aviso é desenhado sobre a partitura.
+          'sugestao' => running.copyWith(
+              bpm: 90,
+              suggestedBpm: 81,
+              message: 'aviso que não deve cobrir a partitura',
+            ),
+          _ => running,
+        };
 
         final key = GlobalKey();
         await tester.pumpWidget(
@@ -174,6 +182,11 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 300));
         expect(tester.takeException(), isNull);
+
+        if (status == 'sugestao') {
+          expect(find.text('aviso que não deve cobrir a partitura'), findsNothing);
+          expect(find.text('Reduzir para 81 BPM'), findsOneWidget);
+        }
 
         if (outDir != null) {
           await tester.runAsync(() async {

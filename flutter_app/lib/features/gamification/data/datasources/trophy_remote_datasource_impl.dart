@@ -5,14 +5,26 @@ import '../../domain/repositories/trophy_repository.dart';
 import '../models/trophy_model.dart';
 import 'trophy_remote_datasource.dart';
 
-// Troféus no Firestore:
-//  - trofeus/{id}                      catálogo (opcional)
-//  - usuarios/{uid}/trofeus/{idTrofeu} conquistas do usuário
-//  - execucoes                         histórico usado nos critérios
+// Troféus no Firestore, dentro do que as regras de segurança do projeto
+// (firestore.rules) permitem:
+//  - trofeus/{id}       catálogo (opcional; sem regra de leitura o app usa
+//                       o catálogo padrão de TrophyModel.defaults)
+//  - usuarios/{uid}     campo "trofeus": mapa idTrofeu -> conquista. As regras
+//                       liberam só o próprio documento do usuário; uma
+//                       subcoleção (usuarios/{uid}/trofeus) cairia na regra
+//                       final, que bloqueia tudo, e a tela de troféus falhava
+//  - execucoes          histórico usado nos critérios (filtrado por idUsuario,
+//                       exigência da regra de leitura)
 class TrophyRemoteDataSourceImpl implements TrophyRemoteDataSource {
+  // Campo do documento do usuário com as conquistas.
+  static const trophiesField = 'trofeus';
+
   final FirebaseFirestore firestore;
 
   TrophyRemoteDataSourceImpl(this.firestore);
+
+  DocumentReference<Map<String, dynamic>> _userDoc(String userId) =>
+      firestore.collection('usuarios').doc(userId);
 
   @override
   Future<List<TrophyModel>> getTrophies() async {
@@ -30,26 +42,34 @@ class TrophyRemoteDataSourceImpl implements TrophyRemoteDataSource {
 
   @override
   Future<List<UserTrophyModel>> getUserTrophies(String userId) async {
-    final snapshot = await firestore
-        .collection('usuarios')
-        .doc(userId)
-        .collection('trofeus')
-        .get();
-    return snapshot.docs.map((doc) => UserTrophyModel.fromMap(doc.data())).toList();
+    final snapshot = await _userDoc(userId).get();
+    final trophies = snapshot.data()?[trophiesField];
+    if (trophies is! Map) return const [];
+    return [
+      for (final entry in trophies.entries)
+        if (entry.value is Map)
+          UserTrophyModel.fromMap({
+            'idTrofeu': entry.key,
+            ...Map<String, dynamic>.from(entry.value as Map),
+          }),
+    ];
   }
 
   @override
   Future<void> awardTrophies(String userId, List<UserTrophy> trophies) async {
-    final batch = firestore.batch();
-    final collection = firestore.collection('usuarios').doc(userId).collection('trofeus');
-    for (final trophy in trophies) {
-      batch.set(collection.doc(trophy.trophyId), {
-        'idTrofeu': trophy.trophyId,
-        'idPartitura': trophy.songId,
-        'dataConquista': FieldValue.serverTimestamp(),
-      });
-    }
-    await batch.commit();
+    if (trophies.isEmpty) return;
+    // merge: acrescenta as novas conquistas ao mapa sem apagar as anteriores
+    // nem os demais campos do perfil.
+    await _userDoc(userId).set({
+      trophiesField: {
+        for (final trophy in trophies)
+          trophy.trophyId: {
+            'idTrofeu': trophy.trophyId,
+            'idPartitura': ?trophy.songId,
+            'dataConquista': FieldValue.serverTimestamp(),
+          },
+      },
+    }, SetOptions(merge: true));
   }
 
   @override

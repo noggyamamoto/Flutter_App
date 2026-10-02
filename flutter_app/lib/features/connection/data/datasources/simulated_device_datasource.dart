@@ -29,6 +29,7 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
   // Metrônomo
   int _bpm = 100;
   int? _pendingBpm;
+  int _pendingAt = 0;
   int _beatsPerBar = 4;
   int _countInBars = 2;
   int _beatIndex = 0;
@@ -94,8 +95,11 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
   }
 
   @override
-  Future<void> setTempo(int bpm) async {
+  Future<void> setTempo(int bpm, {int atBeat = 0}) async {
+    // Mesma regra do firmware: vale a partir da batida `atBeat`
+    // (ou da próxima, se ela já passou).
     _pendingBpm = bpm;
+    _pendingAt = atBeat;
   }
 
   @override
@@ -147,6 +151,10 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
 
     // Batidas do metrônomo
     while (now >= _nextBeatMs) {
+      if (_pendingBpm != null && _beatIndex >= _pendingAt) {
+        _bpm = _pendingBpm!;
+        _pendingBpm = null;
+      }
       final bar = _beatIndex ~/ _beatsPerBar;
       _events.add(
         BeatEvent(
@@ -157,10 +165,6 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
           timeMs: _nextBeatMs.round(),
         ),
       );
-      if (_pendingBpm != null) {
-        _bpm = _pendingBpm!;
-        _pendingBpm = null;
-      }
       _beatIndex++;
       _nextBeatMs += 60000 / _bpm;
     }

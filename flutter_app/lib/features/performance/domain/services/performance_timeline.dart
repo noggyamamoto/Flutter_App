@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../../../score/domain/entities/phrase.dart';
 
 // Converte posições da partitura (semínimas) em tempo da sessão (ms),
@@ -5,10 +7,19 @@ import '../../../score/domain/entities/phrase.dart';
 //
 // A sessão começa (0 ms) no início da contagem de entrada. A música
 // começa, a partir da frase `startPhrase`, após `countInMs`.
+//
+// Sincronismo com o dispositivo: o metrônomo do firmware bate na unidade
+// de tempo do compasso (`beatType`: em 6/8 a colcheia) com um BPM inteiro.
+// A duração das notas aqui é calculada a partir desse MESMO BPM inteiro
+// (e não do BPM em semínimas), para que a linha do tempo do app e as
+// batidas que o aluno ouve não se afastem ao longo da música.
 class PerformanceTimeline {
   final List<Phrase> phrases;
   final int startPhrase;
   final double countInMs;
+
+  // Denominador da fórmula de compasso (unidade de tempo do metrônomo).
+  final int beatType;
 
   // Andamento (semínimas por minuto) de cada frase.
   final Map<int, int> _bpm;
@@ -18,11 +29,28 @@ class PerformanceTimeline {
     required this.startPhrase,
     required this.countInMs,
     required int initialBpm,
+    this.beatType = 4,
   }) : _bpm = {
           for (final phrase in phrases) phrase.index: initialBpm,
         };
 
+  // BPM inteiro do metrônomo do dispositivo para um andamento em semínimas.
+  static int metronomeBpmFor(int quarterBpm, int beatType) =>
+      max(20, (quarterBpm * beatType / 4).round());
+
   int bpmOf(int phraseIndex) => _bpm[phraseIndex] ?? _bpm.values.first;
+
+  // BPM enviado ao metrônomo do dispositivo nesta frase.
+  int metronomeBpmOf(int phraseIndex) => metronomeBpmFor(bpmOf(phraseIndex), beatType);
+
+  // Batidas do metrônomo entre o início de `fromPhrase` e o de `toPhrase`.
+  int metronomeBeatsBetween(int fromPhrase, int toPhrase) {
+    var beats = 0.0;
+    for (var p = fromPhrase; p < toPhrase && p < phrases.length; p++) {
+      beats += phrases[p].durationBeats * beatType / 4;
+    }
+    return beats.round();
+  }
 
   // Altera o andamento desta frase em diante.
   void setBpmFrom(int phraseIndex, int bpm) {
@@ -31,7 +59,8 @@ class PerformanceTimeline {
     }
   }
 
-  double _beatMs(int phraseIndex) => 60000 / bpmOf(phraseIndex);
+  // Duração de uma semínima, derivada do BPM inteiro do metrônomo.
+  double _beatMs(int phraseIndex) => 60000 / metronomeBpmOf(phraseIndex) * beatType / 4;
 
   // Início de uma frase no relógio da sessão.
   double phraseStartMs(int phraseIndex) {

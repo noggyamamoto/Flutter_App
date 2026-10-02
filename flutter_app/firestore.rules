@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================================
+    // USUÁRIOS
+    // =====================================================
+
+    // Cada usuário só pode acessar os próprios dados.
+    match /usuarios/{userId} {
+      allow read, write:
+        if request.auth != null
+        && request.auth.uid == userId;
+    }
+
+
+    // =====================================================
+    // PARTITURAS
+    // =====================================================
+
+    // Qualquer usuário autenticado pode consultar as partituras.
+    match /partituras/{partituraId} {
+      allow read:
+        if request.auth != null;
+
+      // As partituras não são alteradas pelo aplicativo.
+      allow write:
+        if false;
+    }
+
+
+    // =====================================================
+    // EXECUÇÕES
+    // =====================================================
+
+    match /execucoes/{execucaoId} {
+
+      // O usuário só pode visualizar as próprias execuções.
+      allow read:
+        if request.auth != null
+        && resource.data.idUsuario == request.auth.uid;
+
+      // Ao criar uma execução, o usuário só pode criar
+      // uma execução vinculada ao próprio UID.
+      allow create:
+        if request.auth != null
+        && request.resource.data.idUsuario == request.auth.uid;
+
+      // Se futuramente o aplicativo permitir editar uma execução,
+      // tanto o documento antigo quanto o novo precisam pertencer
+      // ao usuário autenticado.
+      allow update:
+        if request.auth != null
+        && resource.data.idUsuario == request.auth.uid
+        && request.resource.data.idUsuario == request.auth.uid;
+
+      // O usuário só pode excluir as próprias execuções.
+      allow delete:
+        if request.auth != null
+        && resource.data.idUsuario == request.auth.uid;
+    }
+
+
+    // =====================================================
+    // DEMAIS COLEÇÕES
+    // =====================================================
+
+    // Tudo que ainda não possui uma regra específica permanece bloqueado.
+    match /{document=**} {
+      allow read, write:
+        if false;
+    }
+  }
+}

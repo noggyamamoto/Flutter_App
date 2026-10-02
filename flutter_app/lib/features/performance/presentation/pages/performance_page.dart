@@ -582,6 +582,7 @@ class _PerformancePageState
               beatInBar: state.beatInBar,
               beatsPerBar: state.structure!.score.beatsPerBar,
               showBeats: settings.metronomeVisual && state.status == PerformanceStatus.running,
+              slowedDown: active && state.bpm < state.initialBpm,
             ),
           ),
 
@@ -641,6 +642,7 @@ class _PerformancePageState
                         beatInBar: state.beatInBar,
                         beatsPerBar: state.structure!.score.beatsPerBar,
                         showBeats: settings.metronomeVisual && state.status == PerformanceStatus.running,
+                        slowedDown: active && state.bpm < state.initialBpm,
                       ),
                     ),
                     HudStat(
@@ -763,9 +765,9 @@ class _PerformancePageState
                 child: _buildPhraseFailed(state),
               ),
 
-            // Resultado do trecho, sugestão de BPM e avisos.
-            if (state.message != null &&
-                state.status != PerformanceStatus.phraseFailed)
+            // Avisos (ex.: conexão perdida) somente fora da execução: durante a
+            // contagem e a execução nada é sobreposto à partitura.
+            if (state.message != null && state.status == PerformanceStatus.ready)
               Positioned(
                 left: 10,
                 right: 10,
@@ -779,15 +781,13 @@ class _PerformancePageState
   }
 
 
-  // Banner do resultado do trecho (como o "section complete" dos apps).
+  // Aviso exibido antes de iniciar (ex.: conexão perdida, dispositivo não
+  // conectado). Durante a execução nada é sobreposto à partitura.
   Widget _buildMessage(
     PerformanceState state,
   ) {
 
     final notifier = ref.read(performanceProvider.notifier);
-    final phraseScore = state.lastPhrase?.score;
-    final isResult = phraseScore != null && state.message!.startsWith('Trecho');
-    final accent = isResult ? FeedbackColors.forScore(phraseScore) : AppColors.primary;
 
     return Material(
       color: AppColors.surface,
@@ -798,17 +798,11 @@ class _PerformancePageState
         padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: accent.withValues(alpha: 0.6)),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.6)),
         ),
         child: Row(
           children: [
-            if (isResult)
-              _Stars(score: phraseScore, color: accent)
-            else
-              Icon(
-                state.suggestedBpm != null ? Icons.speed_rounded : Icons.info_outline_rounded,
-                color: accent,
-              ),
+            const Icon(Icons.info_outline_rounded, color: AppColors.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -816,16 +810,6 @@ class _PerformancePageState
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
             ),
-            if (state.suggestedBpm != null)
-              TextButton(
-                onPressed: notifier.acceptTempoSuggestion,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: AppColors.primary,
-                  shape: const StadiumBorder(),
-                ),
-                child: Text('${state.suggestedBpm} BPM'),
-              ),
             IconButton(
               tooltip: 'Fechar',
               visualDensity: VisualDensity.compact,
@@ -961,12 +945,16 @@ class _PerformancePageState
 
         children: [
 
-          // Notas tocadas até agora.
+          // Notas tocadas até agora ou, se o trecho foi instável e o ajuste
+          // automático está desligado, a sugestão de BPM (RFA09) – aqui, fora
+          // da partitura, para não cobrir o trecho seguinte.
           Expanded(
-            child: Text(
-              '${state.notesPlayed} notas tocadas',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-            ),
+            child: state.suggestedBpm != null
+                ? _buildTempoSuggestion(state)
+                : Text(
+                    '${state.notesPlayed} notas tocadas',
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                  ),
           ),
 
           // Finaliza a performance.
@@ -989,6 +977,44 @@ class _PerformancePageState
           ),
         ],
       ),
+    );
+  }
+
+
+  // Sugestão de redução de andamento (RFA09) exibida nos controles.
+  Widget _buildTempoSuggestion(
+    PerformanceState state,
+  ) {
+
+    final notifier = ref.read(performanceProvider.notifier);
+
+    return Row(
+      children: [
+        const Icon(Icons.speed_rounded, color: Colors.amber, size: 20),
+        const SizedBox(width: 6),
+        Flexible(
+          child: TextButton(
+            onPressed: notifier.acceptTempoSuggestion,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              backgroundColor: AppColors.surface,
+              shape: const StadiumBorder(),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
+            child: Text(
+              'Reduzir para ${state.suggestedBpm} BPM',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Dispensar',
+          visualDensity: VisualDensity.compact,
+          onPressed: notifier.dismissMessage,
+          icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 18),
+        ),
+      ],
     );
   }
 
@@ -1190,21 +1216,13 @@ class _PerformancePageState
               result.overall,
         );
 
-        // Atualiza o histórico exibido no resultado.
+        // Atualiza o histórico exibido no resultado, as músicas recentes e
+        // o progresso dos troféus (a nova execução conta nos critérios).
         ref.invalidate(historyProvider(
           HistoryParams(userId: user.id, songId: widget.song.id),
         ));
-
-        // Troféus (RFA10), somente para músicas concluídas.
-        if (result.completed) {
-          final hardSongs = await ref.read(hardSongIdsProvider.future);
-          newTrophies = await ref.read(checkTrophiesProvider)(
-            userId: user.id,
-            songId: widget.song.id,
-            hardSongIds: hardSongs,
-          );
-          ref.invalidate(trophyProgressProvider(user.id));
-        }
+        ref.invalidate(recentSongIdsProvider(user.id));
+        ref.invalidate(trophyProgressProvider(user.id));
 
       } catch (e) {
 
@@ -1215,6 +1233,29 @@ class _PerformancePageState
               backgroundColor: Colors.redAccent,
             ),
           );
+        }
+      }
+
+      // Troféus (RFA10), somente para músicas concluídas. Separado do
+      // salvamento: uma falha aqui não significa que a execução se perdeu.
+      if (result.completed) {
+        try {
+          final hardSongs = await ref.read(hardSongIdsProvider.future);
+          newTrophies = await ref.read(checkTrophiesProvider)(
+            userId: user.id,
+            songId: widget.song.id,
+            hardSongIds: hardSongs,
+          );
+          ref.invalidate(trophyProgressProvider(user.id));
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Não foi possível verificar os troféus: $e'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
         }
       }
     }
@@ -1403,30 +1444,3 @@ class _Panel extends StatelessWidget {
   }
 }
 
-
-// Estrelas do resultado do trecho (1 a 3).
-class _Stars extends StatelessWidget {
-
-  final double score;
-  final Color color;
-
-  const _Stars({required this.score, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-
-    final stars = score >= 90 ? 3 : (score >= 70 ? 2 : 1);
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < 3; i++)
-          Icon(
-            i < stars ? Icons.star_rounded : Icons.star_outline_rounded,
-            color: i < stars ? color : Colors.white24,
-            size: 18,
-          ),
-      ],
-    );
-  }
-}
