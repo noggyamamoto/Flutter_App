@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:math';
 
+import '../../../device_discovery/data/known_devices_store.dart';
+import '../../../device_discovery/domain/discovery_targets.dart';
 import '../../domain/entities/device_event.dart';
+import '../../domain/entities/expected_note_cue.dart';
 import '../../domain/entities/session_config.dart';
 import '../../domain/entities/simulation_note.dart';
 import '../models/device_model.dart';
@@ -19,6 +23,7 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
   static const connectionTimeout = Duration(seconds: 4);
 
   final UdpTransport _transport;
+  final KnownDevicesStore _known;
   final DeviceProtocol _protocol = DeviceProtocol();
   final _events = StreamController<DeviceEvent>.broadcast();
 
@@ -28,11 +33,15 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
   DateTime _lastPong = DateTime.now();
   bool _sessionConfirmed = false;
 
-  // Identificador da execução atual (1..255), ecoado nas batidas.
-  int _sessionId = 0;
+  // Identificador da execução atual (1..255), ecoado nas batidas. Começa em
+  // um valor aleatório: ao recarregar o app, o primeiro id não coincide com
+  // o de uma execução que ainda esteja ativa no dispositivo (o firmware
+  // ignoraria o novo início como repetição e o relógio não seria zerado).
+  int _sessionId = Random().nextInt(255);
 
-  ConnectionRemoteDataSourceImpl({UdpTransport? transport})
-      : _transport = transport ?? UdpTransport();
+  ConnectionRemoteDataSourceImpl({UdpTransport? transport, KnownDevicesStore? knownDevices})
+      : _transport = transport ?? UdpTransport(),
+        _known = knownDevices ?? KnownDevicesStore();
 
   @override
   bool get isSupported => _transport.isSupported;
@@ -69,20 +78,67 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
       }
     });
 
-    // Envia a busca algumas vezes: UDP pode perder pacotes.
-    final rounds = 3;
-    for (var i = 0; i < rounds; i++) {
-      final packet = _protocol.encodeDiscover();
+    try {
       if (address != null) {
-        _transport.send(packet, address, DeviceProtocol.devicePort);
+        // Endereço informado pelo usuário.
+        await _rounds(timeout, () async {
+          _transport.send(_protocol.encodeDiscover(), address, DeviceProtocol.devicePort);
+        });
       } else {
-        await _transport.broadcast(packet, DeviceProtocol.devicePort);
+        await _search(timeout, found);
       }
+    } finally {
+      await subscription.cancel();
+    }
+    return found.values.toList()..sort((a, b) => b.rssi.compareTo(a.rssi));
+  }
+
+  // Envia a busca algumas vezes ao longo do prazo: UDP pode perder pacotes.
+  Future<void> _rounds(Duration timeout, Future<void> Function() send) async {
+    const rounds = 3;
+    for (var i = 0; i < rounds; i++) {
+      await send();
       await Future<void>.delayed(timeout ~/ rounds);
     }
+  }
 
-    await subscription.cancel();
-    return found.values.toList()..sort((a, b) => b.rssi.compareTo(a.rssi));
+  // Busca automática (RU02): etapa rápida e, se nada responder, varredura
+  // das sub-redes (ver DiscoveryTargets).
+  Future<void> _search(Duration timeout, Map<String, DeviceModel> found) async {
+    final known = await _known.load();
+    final quick = DiscoveryTargets.quick(known);
+    final local = await _transport.localSubnets();
+
+    await _rounds(timeout, () async {
+      final packet = _protocol.encodeDiscover();
+      if (_transport.supportsBroadcast) {
+        await _transport.broadcast(packet, DeviceProtocol.devicePort);
+      }
+      await _transport.probe(quick, packet, DeviceProtocol.devicePort);
+    });
+    if (found.isNotEmpty) return;
+
+    // Varredura: no celular/computador, as sub-redes das interfaces (UDP,
+    // quase instantâneo) – útil quando o modem bloqueia broadcast. No
+    // navegador, as sub-redes já usadas e as mais comuns, uma por vez, até
+    // encontrar o dispositivo.
+    final subnets = DiscoveryTargets.subnets(
+      local: local,
+      known: known,
+      includeCommon: !_transport.supportsBroadcast,
+    );
+    for (final prefix in subnets) {
+      final packet = _protocol.encodeDiscover();
+      await _transport.probe(
+        DiscoveryTargets.hostsOf(prefix),
+        packet,
+        DeviceProtocol.devicePort,
+        concurrency: _transport.supportsBroadcast ? 254 : 48,
+      );
+      // Respostas atrasadas
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (found.isNotEmpty) return;
+    }
   }
 
   // ------------------------------------------------------------------------
@@ -129,6 +185,9 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
     _device = device;
     _lastPong = DateTime.now();
     _startHeartbeat();
+
+    // Próxima busca começa por este endereço.
+    unawaited(_known.remember(device.address));
   }
 
   void _startHeartbeat() {
@@ -246,6 +305,7 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
           countInBars: config.countInBars,
           flags: _flags(config),
           sessionId: _sessionId,
+          beatType: config.beatType,
         ),
         device.address,
         device.port,
@@ -294,6 +354,25 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
       device.address,
       device.port,
     );
+  }
+
+  @override
+  void sendExpectedNotes(List<ExpectedNoteCue> notes) {
+    final device = _device;
+    if (device == null) return;
+    for (final note in notes) {
+      _transport.send(
+        _protocol.encodeExpectedNote(
+          index: note.index,
+          midi: note.midi,
+          onsetMs: note.onsetMs,
+          durationMs: note.durationMs,
+          durationBeats: note.durationBeats,
+        ),
+        device.address,
+        device.port,
+      );
+    }
   }
 
   @override

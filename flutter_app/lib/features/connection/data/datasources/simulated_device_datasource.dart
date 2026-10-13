@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import '../../domain/entities/device_event.dart';
+import '../../domain/entities/expected_note_cue.dart';
 import '../../domain/entities/session_config.dart';
 import '../../domain/entities/simulation_note.dart';
 import '../models/device_model.dart';
@@ -18,6 +19,10 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
   final double wrongNoteRate;
   final double missedNoteRate;
   final int timingJitterMs;
+
+  // Atraso de entrega das notas (confirmação da altura + rede), como no
+  // dispositivo real: o evento chega depois, mas com o instante do ataque.
+  final int noteDeliveryDelayMs;
 
   final _events = StreamController<DeviceEvent>.broadcast();
   final Random _random;
@@ -42,6 +47,7 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
     this.wrongNoteRate = 0.06,
     this.missedNoteRate = 0.04,
     this.timingJitterMs = 35,
+    this.noteDeliveryDelayMs = 0,
     int? seed,
   }) : _random = Random(seed);
 
@@ -105,6 +111,10 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
   @override
   Future<void> configure(SessionConfig config) async {}
 
+  // O simulador não tem monitor serial.
+  @override
+  void sendExpectedNotes(List<ExpectedNoteCue> notes) {}
+
   @override
   void scheduleSimulation(List<SimulationNote> notes) {
     final now = _clock?.elapsedMilliseconds ?? 0;
@@ -125,7 +135,7 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
 
       _queue.add(
         _Scheduled(
-          onset,
+          onset + noteDeliveryDelayMs,
           NotePlayedEvent(
             midi: midi,
             frequency: frequency.toDouble(),
@@ -136,7 +146,7 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
       );
       _queue.add(
         _Scheduled(
-          onset + duration,
+          onset + duration + noteDeliveryDelayMs,
           NoteReleasedEvent(midi: midi, durationMs: duration, timeMs: onset + duration),
         ),
       );

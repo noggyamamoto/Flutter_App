@@ -110,8 +110,9 @@ void main() {
       final late = e.onNoteOn(midi: 64, onsetMs: 5220)!;
       expect(late.feedback, NoteFeedback.approximate);
       expect(late.onsetErrorMs, 220);
-      // Fá não foi tocado
-      final missed = e.advance(6000);
+      // Fá não foi tocado: perdido após a janela + o tempo de entrega
+      expect(e.advance(6000), isEmpty);
+      final missed = e.advance(6200);
       expect(missed.map((c) => c.expected.midi), [65]);
       expect(missed.single.feedback, NoteFeedback.missed);
 
@@ -119,6 +120,35 @@ void main() {
       expect(phrase.notesMissed, 1);
       expect(phrase.score, lessThan(50));
       expect(phrase.failed, isTrue);
+    });
+
+    test('nota correta que chega atrasada pela rede não vira erro', () {
+      final notes = _scale();
+      final e = PerformanceEvaluator(
+        notes,
+        tolerance: const EvaluationTolerance(deliveryLatencyMs: 0),
+      );
+      final timeline = _timeline();
+      for (final note in notes) {
+        e.setTiming(
+          note.index,
+          timeline.beatToMs(note.startBeat).round(),
+          timeline.durationMs(note.startBeat, note.durationBeats).round(),
+        );
+      }
+
+      // O relógio do app passou da janela do Dó antes de o pacote chegar...
+      final missed = e.advance(4600);
+      expect(missed.map((c) => c.expected.midi), [60]);
+
+      // ...mas o ataque (relógio do dispositivo) foi no tempo certo
+      final late = e.onNoteOn(midi: 60, onsetMs: 4010)!;
+      expect(late.feedback, NoteFeedback.correct);
+      expect(e.resultOf(0)!.feedback, NoteFeedback.correct);
+
+      final phrase = e.evaluatePhrase(0);
+      expect(phrase.extraNotes, 0);
+      expect(phrase.notesMissed, 3);               // Ré, Mi e Fá não foram tocados
     });
 
     test('correção logo após um erro substitui o resultado', () {

@@ -9,6 +9,9 @@ class SessionConfig {
   // Compassos de contagem antes da música (RFA05).
   final int countInBars;
 
+  // Denominador do compasso (unidade de tempo do metrônomo).
+  final int beatType;
+
   // Metrônomo sonoro e visual no dispositivo (RFE02 / RFE03).
   final bool metronomeSound;
   final bool metronomeVisual;
@@ -17,6 +20,7 @@ class SessionConfig {
     required this.bpm,
     required this.beatsPerBar,
     this.countInBars = 2,
+    this.beatType = 4,
     this.metronomeSound = true,
     this.metronomeVisual = true,
   });

@@ -49,8 +49,10 @@ class PlatformUdpTransport implements UdpTransport {
         link.channel.sink.add(data);
       }
       link.pending.clear();
+      if (!link.opened.isCompleted) link.opened.complete(true);
     }, onError: (Object _) {
       link.closed = true;
+      if (!link.opened.isCompleted) link.opened.complete(false);
     });
 
     link.channel.stream.listen(
@@ -59,6 +61,7 @@ class PlatformUdpTransport implements UdpTransport {
             ? message
             : (message is List<int> ? Uint8List.fromList(message) : null);
         if (data == null) return;
+        link.received = true;
         _controller.add(UdpDatagram(data: data, address: address, port: DeviceProtocol.devicePort));
       },
       onError: (_) => link.closed = true,
@@ -86,6 +89,63 @@ class PlatformUdpTransport implements UdpTransport {
     send(data, '192.168.4.1', port);
   }
 
+  // O navegador não informa a rede do computador.
+  @override
+  Future<List<String>> localSubnets() async => const [];
+
+  // Abre um WebSocket por endereço (no máximo `concurrency` ao mesmo tempo)
+  // e envia o pacote aos que abrirem. Endereços sem servidor são fechados no
+  // prazo; os que abriram mas não responderam são fechados logo depois, para
+  // não acumular conexões.
+  @override
+  Future<void> probe(
+    List<String> addresses,
+    Uint8List data,
+    int port, {
+    int concurrency = 32,
+    Duration timeout = const Duration(milliseconds: 1200),
+  }) async {
+    if (!_open) return;
+    var next = 0;
+
+    Future<void> worker() async {
+      while (next < addresses.length && _open) {
+        final address = addresses[next++];
+        final existing = _links[address];
+        if (existing != null && existing.ready && !existing.closed) {
+          existing.channel.sink.add(data);
+          continue;
+        }
+        final link = _linkTo(address);
+        final opened = await link.opened.future.timeout(timeout, onTimeout: () => false);
+        if (!opened) {
+          _drop(address, link);
+          continue;
+        }
+        link.channel.sink.add(data);
+        // Aguarda a resposta antes de liberar a vaga; quem não responde
+        // (outro servidor qualquer) é fechado.
+        final deadline = DateTime.now().add(timeout);
+        while (!link.received && DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        }
+        if (!link.received) _drop(address, link);
+      }
+    }
+
+    await Future.wait([
+      for (var i = 0; i < concurrency && i < addresses.length; i++) worker(),
+    ]);
+  }
+
+  void _drop(String address, _Link link) {
+    link.closed = true;
+    try {
+      link.channel.sink.close();
+    } catch (_) {}
+    if (identical(_links[address], link)) _links.remove(address);
+  }
+
   @override
   Stream<UdpDatagram> get datagrams => _controller.stream;
 
@@ -102,8 +162,10 @@ class PlatformUdpTransport implements UdpTransport {
 class _Link {
   final WebSocketChannel channel;
   final List<Uint8List> pending = [];
+  final Completer<bool> opened = Completer<bool>();
   bool ready = false;
   bool closed = false;
+  bool received = false;
 
   _Link(this.channel);
 }

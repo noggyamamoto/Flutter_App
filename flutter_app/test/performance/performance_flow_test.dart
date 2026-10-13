@@ -5,6 +5,8 @@ import 'package:flutter_app/features/configuration/presentation/providers/config
 import 'package:flutter_app/features/connection/data/datasources/connection_remote_datasource.dart';
 import 'package:flutter_app/features/connection/data/datasources/simulated_device_datasource.dart';
 import 'package:flutter_app/features/connection/presentation/providers/connection_provider.dart';
+import 'package:flutter_app/features/execution_log/domain/services/execution_console_log.dart';
+import 'package:flutter_app/features/execution_log/presentation/providers/execution_log_provider.dart';
 import 'package:flutter_app/features/performance/data/services/audio_synth.dart';
 import 'package:flutter_app/features/performance/data/services/performance_audio.dart';
 import 'package:flutter_app/features/performance/domain/entities/performance_state.dart';
@@ -37,7 +39,7 @@ class _SilentAudio extends PerformanceAudio {
   Future<Uint8List> render(SynthRequest request) async => Uint8List(0);
 
   @override
-  Future<void> play(Uint8List wav) async => played++;
+  Future<void> play(Uint8List wav, {Duration position = Duration.zero}) async => played++;
 
   @override
   Future<void> stop() async {}
@@ -52,9 +54,10 @@ const _song = Song(
   arquivoMidi: 'sinfonia_coral_melodia_16_compassos.mid',
 );
 
-ProviderContainer _container(ConnectionRemoteDataSource simulator) {
+ProviderContainer _container(ConnectionRemoteDataSource simulator, {List<String>? log}) {
   return ProviderContainer(
     overrides: [
+      executionConsoleLogProvider.overrideWithValue(ExecutionConsoleLog((line) => log?.add(line))),
       simulatedDeviceDataSourceProvider.overrideWithValue(simulator),
       getMusicScoreProvider.overrideWithValue(GetMusicScore(_FileScoreRepository())),
       performanceAudioProvider.overrideWithValue(_SilentAudio()),
@@ -94,8 +97,10 @@ void main() {
   });
 
   test('aluno virtual toca a música inteira e recebe a avaliação', () async {
+    final log = <String>[];
     final container = _container(
       SimulatedDeviceDataSource(wrongNoteRate: 0, missedNoteRate: 0, timingJitterMs: 25, seed: 1),
+      log: log,
     );
     addTearDown(container.dispose);
 
@@ -132,6 +137,44 @@ void main() {
     expect(finished.bestStreak, greaterThan(10));
     expect(finished.judgement, isNotNull);
     expect(finished.phraseScores.keys, containsAll([0, 1, 2, 3]));
+
+    // Console: notas esperadas e captadas com nome e figura.
+    expect(log.first, startsWith('[Execução] Início'));
+    expect(log.where((l) => l.startsWith('[Esperado]')), hasLength(result.notesExpected));
+    expect(log.any((l) => l.startsWith('[Captado ]') && l.contains('Perfeito!')), isTrue);
+    expect(log.any((l) => l.contains('semínima') || l.contains('colcheia')), isTrue);
+    expect(log.where((l) => l.startsWith('[Trecho  ]')), hasLength(4));
+    expect(log.last, startsWith('[Execução] Concluída'));
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  // Dispositivo real: cada nota chega ao app ~300 ms depois do ataque
+  // (confirmação da altura + Wi-Fi/WebSocket). As notas certas, no tempo
+  // certo, não podem virar "perdidas" + "extras".
+  test('notas que chegam atrasadas pela rede continuam corretas', () async {
+    final container = _container(
+      SimulatedDeviceDataSource(
+        wrongNoteRate: 0,
+        missedNoteRate: 0,
+        timingJitterMs: 25,
+        noteDeliveryDelayMs: 300,
+        seed: 4,
+      ),
+    );
+    addTearDown(container.dispose);
+    container.read(configurationProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    await container.read(connectionProvider.notifier).useSimulator();
+    final notifier = container.read(performanceProvider.notifier);
+    await notifier.loadSong(_song);
+    await notifier.start();
+
+    final finished = await _waitFor(container, (s) => s.status == PerformanceStatus.finished);
+    final result = finished.result!;
+    expect(result.completed, isTrue);
+    expect(result.extraNotes, 0);
+    expect(result.pitchAccuracy, greaterThan(95));
+    expect(result.overall, greaterThan(80));
   }, timeout: const Timeout(Duration(seconds: 60)));
 
   test('frase abaixo de 50% interrompe a execução e permite repetir', () async {

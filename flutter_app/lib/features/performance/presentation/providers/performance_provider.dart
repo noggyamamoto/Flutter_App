@@ -9,9 +9,12 @@ import 'package:flutter_app/features/history/presentation/providers/history_prov
 import '../../../configuration/domain/entities/performance_settings.dart';
 import '../../../configuration/presentation/providers/configuration_provider.dart';
 import '../../../connection/domain/entities/device_event.dart';
+import '../../../connection/domain/entities/expected_note_cue.dart';
 import '../../../connection/domain/entities/session_config.dart';
 import '../../../connection/domain/entities/simulation_note.dart';
 import '../../../connection/presentation/providers/connection_provider.dart';
+import '../../../execution_log/domain/services/execution_console_log.dart';
+import '../../../execution_log/presentation/providers/execution_log_provider.dart';
 import '../../../score/domain/entities/note_comparison.dart';
 import '../../../score/domain/entities/score_result.dart';
 import '../../../score/domain/services/performance_evaluator.dart';
@@ -119,8 +122,9 @@ class PerformanceNotifier
   // Compassos de contagem antes da música (RFA05).
   static const countInBars = 2;
 
-  // Tempo extra após o fim da frase para receber as últimas notas.
-  static const phraseGraceMs = 400;
+  // Tempo extra após o fim da frase para receber as últimas notas (inclui o
+  // tempo de entrega dos eventos do dispositivo pela rede).
+  static const phraseGraceMs = 500;
 
   // Intervalo de atualização da tela.
   static const tickInterval = Duration(milliseconds: 30);
@@ -144,6 +148,13 @@ class PerformanceNotifier
   // Mudança de andamento agendada (frase) e se o reenvio já foi feito.
   int? _tempoPhrase;
   bool _tempoResent = false;
+
+  // Log da execução no console (esperado x captado) e frases cujas notas
+  // esperadas já foram enviadas ao monitor serial do dispositivo.
+  ExecutionConsoleLog? _log;
+  int _nextLogNote = 0;
+  final Set<int> _cuedPhrases = {};
+  int _cueCheckPhrase = -1;
 
   // Áudio da música guia / cliques por frase.
   PerformanceAudio? _audio;
@@ -343,6 +354,12 @@ class PerformanceNotifier
 
     _applyTimings(fromPhrase);
 
+    _log = ref.read(executionConsoleLogProvider);
+    final firstNote = structure.expectedNotes.indexWhere((n) => n.phraseIndex >= fromPhrase);
+    _nextLogNote = firstNote < 0 ? structure.expectedNotes.length : firstNote;
+    _cuedPhrases.clear();
+    _cueCheckPhrase = -1;
+
     _nextPhrase = fromPhrase;
     _tempoPhrase = null;
     _audioPhrase = -1;
@@ -381,6 +398,17 @@ class PerformanceNotifier
 
     _offsetMs = null;
 
+    _log?.start(
+      bpm: bpm,
+      metronomeBpm: metronomeBpm,
+      beatsPerBar: score.beatsPerBar,
+      beatType: score.beatType,
+      countInBars: countInBars,
+      countInMs: _timeline!.countInMs.round(),
+      fromPhrase: fromPhrase,
+      simulated: _simulated,
+    );
+
     try {
 
       await repository.startSession(
@@ -388,6 +416,7 @@ class PerformanceNotifier
           bpm: metronomeBpm,
           beatsPerBar: score.beatsPerBar,
           countInBars: countInBars,
+          beatType: score.beatType,
           metronomeSound: _settings.metronomeSound,
           metronomeVisual: _settings.metronomeVisual,
         ),
@@ -395,6 +424,7 @@ class PerformanceNotifier
 
     } catch (e) {
 
+      _log = null;
       await _stopRun();
 
       state = state.copyWith(
@@ -409,6 +439,10 @@ class PerformanceNotifier
     if (_simulated) {
       repository.scheduleSimulation(_simulationNotes(fromPhrase));
     }
+
+    // Monitor serial do dispositivo: notas do primeiro trecho (as dos
+    // seguintes vão no início do trecho anterior).
+    _cuePhrase(fromPhrase);
 
     _prepareAudio(fromPhrase);
 
@@ -447,6 +481,51 @@ class PerformanceNotifier
         timeline.beatToMs(note.startBeat).round(),
         timeline.durationMs(note.startBeat, note.durationBeats).round(),
       );
+    }
+  }
+
+
+  // Envia ao dispositivo as notas esperadas de um trecho (monitor serial).
+  void _cuePhrase(int phraseIndex) {
+
+    final evaluator = _evaluator;
+    final structure = state.structure;
+
+    if (evaluator == null || structure == null) return;
+    if (phraseIndex < 0 || phraseIndex >= structure.phrases.length) return;
+
+    _cuedPhrases.add(phraseIndex);
+
+    ref.read(connectionRepositoryProvider).sendExpectedNotes([
+      for (final note in evaluator.notes)
+        if (note.phraseIndex == phraseIndex)
+          ExpectedNoteCue(
+            index: note.index,
+            midi: note.midi,
+            onsetMs: evaluator.onsetOf(note.index) ?? 0,
+            durationMs: evaluator.durationOf(note.index) ?? 0,
+            durationBeats: note.durationBeats,
+          ),
+    ]);
+  }
+
+
+  // Registra no console as notas esperadas cuja hora chegou.
+  void _logDueNotes(int now) {
+
+    final evaluator = _evaluator;
+    final log = _log;
+
+    if (evaluator == null || log == null) return;
+
+    final notes = evaluator.notes;
+
+    while (_nextLogNote < notes.length) {
+      final note = notes[_nextLogNote];
+      final onset = evaluator.onsetOf(note.index);
+      if (onset == null || onset > now) break;
+      log.expected(note, onsetMs: onset, durationMs: evaluator.durationOf(note.index) ?? 0);
+      _nextLogNote++;
     }
   }
 
@@ -517,6 +596,12 @@ class PerformanceNotifier
       _playPhraseAudio(phrase);
     }
 
+    // Monitor serial: notas do próximo trecho antes de ele começar.
+    if (phrase != null && phrase != _cueCheckPhrase) {
+      _cueCheckPhrase = phrase;
+      _cuePhrase(phrase + 1);
+    }
+
     // Reenvia a mudança de andamento meio tempo antes da frase (o primeiro
     // envio, no agendamento, pode se perder na rede UDP).
     if (_tempoPhrase != null && !_tempoResent) {
@@ -531,6 +616,11 @@ class PerformanceNotifier
 
     // Notas cuja janela passou sem serem tocadas.
     final missed = evaluator.advance(now);
+
+    _logDueNotes(now);
+    for (final comparison in missed) {
+      _log?.missed(comparison, onsetMs: evaluator.onsetOf(comparison.expected.index) ?? 0);
+    }
 
     var feedback = state.feedback;
     NoteJudgement? judgement;
@@ -584,6 +674,8 @@ class PerformanceNotifier
 
     final result = _evaluator!.evaluatePhrase(phraseIndex);
     final phrases = state.structure!.phrases;
+
+    _log?.phrase(result);
 
     _evaluatedPhrases.add(phraseIndex);
 
@@ -709,6 +801,11 @@ class PerformanceNotifier
 
     _applyTimings(phraseIndex);
 
+    // Notas já enviadas ao monitor serial com o andamento anterior.
+    for (final phrase in _cuedPhrases.where((p) => p >= phraseIndex).toList()) {
+      _cuePhrase(phrase);
+    }
+
     _tempoPhrase = phraseIndex;
     _tempoResent = false;
 
@@ -759,13 +856,35 @@ class PerformanceNotifier
 
         final timeline = _timeline;
 
-        // Notas durante a contagem de entrada são ignoradas.
-        if (timeline == null || event.timeMs < timeline.countInMs - 250) return;
+        // Notas durante a contagem de entrada são ignoradas. A margem é a
+        // janela máxima de avaliação: a primeira nota tocada um pouco antes
+        // do tempo ainda é comparada com a primeira nota da música.
+        final margin = _evaluator?.tolerance.maxWindowMs ?? 400;
+        if (timeline == null) return;
+        if (event.timeMs < timeline.countInMs - margin) {
+          _log?.captured(
+            midi: event.midi,
+            frequency: event.frequency,
+            timeMs: event.timeMs,
+            comparison: null,
+            verdict: '',
+            countIn: true,
+          );
+          return;
+        }
 
         final comparison = _evaluator?.onNoteOn(
           midi: event.midi,
           onsetMs: event.timeMs,
           frequency: event.frequency,
+        );
+
+        _log?.captured(
+          midi: event.midi,
+          frequency: event.frequency,
+          timeMs: event.timeMs,
+          comparison: comparison,
+          verdict: NoteJudgement.labelFor(comparison),
         );
 
         _applyComparison(
@@ -775,6 +894,8 @@ class PerformanceNotifier
         );
 
       case NoteReleasedEvent():
+
+        _logRelease(event);
 
         final comparison = _evaluator?.onNoteOff(
           midi: event.midi,
@@ -800,6 +921,27 @@ class PerformanceNotifier
       case DeviceStatusEvent():
         break;
     }
+  }
+
+
+  // Duração medida convertida em figura no andamento do trecho.
+  void _logRelease(NoteReleasedEvent event) {
+
+    final timeline = _timeline;
+    final log = _log;
+
+    if (timeline == null || log == null) return;
+
+    final onset = (event.timeMs - event.durationMs).toDouble();
+    final beat = timeline.msToBeat(max(onset, timeline.countInMs)) ??
+        timeline.phrases[timeline.startPhrase].startBeat;
+
+    log.released(
+      midi: event.midi,
+      durationMs: event.durationMs,
+      timeMs: event.timeMs,
+      quarterMs: timeline.durationMs(beat, 1),
+    );
   }
 
 
@@ -870,8 +1012,12 @@ class PerformanceNotifier
   // ÁUDIO (música guia e cliques do modo demonstração)
   // -------------------------------------------------------
 
-  bool get _needsAudio =>
-      _settings.guideAudio || (_simulated && _settings.metronomeSound);
+  // Metrônomo sonoro do app: no modo demonstração (sem buzzer) e também com
+  // o dispositivo conectado, quando o metrônomo sonoro está ligado.
+  bool get _needsAudio => _settings.guideAudio || _settings.metronomeSound;
+
+  // Com o dispositivo o microfone ouve o alto-falante: clique sem altura.
+  ClickSound get _clickSound => _simulated ? ClickSound.tone : ClickSound.wood;
 
   void _prepareAudio(int fromPhrase) {
 
@@ -879,8 +1025,11 @@ class PerformanceNotifier
 
     _audio ??= ref.read(performanceAudioProvider);
 
-    // Sem o buzzer do dispositivo, o app toca a contagem (RU07).
-    if (_simulated) {
+    // Contagem de entrada (RU07): sempre no modo demonstração (sem o buzzer
+    // do dispositivo); com o dispositivo, se o metrônomo sonoro estiver
+    // ligado. O áudio começa no ponto da contagem em que a sessão está
+    // (alinhado às batidas do dispositivo).
+    if (_simulated || _settings.metronomeSound) {
 
       final beats = countInBars * state.structure!.score.beatsPerBar;
       final beatMs = 60000 / _metronomeBpm(state.bpm);
@@ -895,11 +1044,12 @@ class PerformanceNotifier
             ),
         ],
         totalMs: (beats * beatMs).round(),
+        clickSound: _clickSound,
       );
 
       _audio!.render(request).then((wav) {
         if (state.status == PerformanceStatus.countdown) {
-          _audio?.play(wav);
+          _audio?.play(wav, position: Duration(milliseconds: max(0, _nowMs)));
         }
       });
     }
@@ -944,7 +1094,7 @@ class PerformanceNotifier
 
     final clicks = <SynthClick>[];
 
-    if (_simulated && _settings.metronomeSound) {
+    if (_settings.metronomeSound) {
 
       final beatMs = 60000 / _metronomeBpm(timeline.bpmOf(phraseIndex));
       final beatsPerBar = structure.score.beatsPerBar;
@@ -971,6 +1121,7 @@ class PerformanceNotifier
         notes: notes,
         clicks: clicks,
         totalMs: (timeline.phraseEndMs(phraseIndex) - start).round(),
+        clickSound: _clickSound,
       ),
     );
   }
@@ -996,7 +1147,10 @@ class PerformanceNotifier
     if (wav != null &&
         state.status == PerformanceStatus.running &&
         _audioPhrase == phraseIndex) {
-      await _audio?.play(wav);
+      // Começa no ponto do trecho em que a execução está (o áudio pode ficar
+      // pronto alguns milissegundos depois do início do trecho).
+      final late = _nowMs - (_timeline?.phraseStartMs(phraseIndex) ?? _nowMs);
+      await _audio?.play(wav, position: Duration(milliseconds: max(0, late.round())));
     }
   }
 
@@ -1079,6 +1233,9 @@ class PerformanceNotifier
             phrases: phrases.toList()..sort(),
             completed: completed,
           );
+
+    if (evaluator != null) _log?.finish(result);
+    _log = null;
 
     state = state.copyWith(
       status: PerformanceStatus.finished,

@@ -17,11 +17,17 @@ class PerformanceAudio {
     return compute(AudioSynth.render, request);
   }
 
-  Future<void> play(Uint8List wav) async {
+  // `position`: começa a tocar a partir deste ponto do áudio (mantém o
+  // metrônomo alinhado ao relógio da sessão quando o áudio fica pronto
+  // depois do instante em que deveria começar).
+  Future<void> play(Uint8List wav, {Duration position = Duration.zero}) async {
     if (_disposed) return;
     try {
       await _player.stop();
-      await _player.play(BytesSource(wav, mimeType: 'audio/wav'));
+      await _player.play(
+        BytesSource(wav, mimeType: 'audio/wav'),
+        position: position > Duration.zero ? position : null,
+      );
     } catch (e) {
       debugPrint('Falha ao reproduzir áudio: $e');
     }

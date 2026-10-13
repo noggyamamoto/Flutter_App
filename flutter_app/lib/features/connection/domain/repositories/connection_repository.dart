@@ -1,5 +1,6 @@
 import '../entities/device.dart';
 import '../entities/device_event.dart';
+import '../entities/expected_note_cue.dart';
 import '../entities/session_config.dart';
 import '../entities/simulation_note.dart';
 
@@ -32,6 +33,9 @@ abstract class ConnectionRepository {
   // sessão, contagem incluída). 0 = na próxima batida.
   Future<void> setTempo(int bpm, {int atBeat = 0});
   Future<void> configure(SessionConfig config);
+
+  // Notas esperadas para o monitor serial do dispositivo.
+  void sendExpectedNotes(List<ExpectedNoteCue> notes);
 
   // Informa ao dispositivo simulado quais notas tocar (modo demonstração).
   void scheduleSimulation(List<SimulationNote> notes);
