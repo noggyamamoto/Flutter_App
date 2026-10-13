@@ -40,13 +40,16 @@ class CountdownWidget extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 120),
-            transitionBuilder: (child, animation) =>
-                ScaleTransition(scale: animation, child: child),
+          // O número aparece inteiro no quadro da batida e só "assenta"
+          // (de 115% para 100%): antes ele crescia do zero em 120 ms e a
+          // contagem parecia atrasada em relação ao clique.
+          TweenAnimationBuilder<double>(
+            key: ValueKey('$bar-$beat'),
+            tween: Tween(begin: 1.15, end: 1.0),
+            duration: const Duration(milliseconds: 140),
+            builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
             child: Text(
               '$beat',
-              key: ValueKey('$bar-$beat'),
               style: TextStyle(
                 color: beat == 1 ? color : Colors.white,
                 fontSize: 96,
@@ -62,8 +65,7 @@ class CountdownWidget extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (var i = 1; i <= beatsPerBar; i++)
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 100),
+                Container(
                   margin: const EdgeInsets.symmetric(horizontal: 6),
                   width: i == beat ? 22 : 14,
                   height: i == beat ? 22 : 14,

@@ -197,7 +197,7 @@ class StreakCounter extends StatelessWidget {
   Widget build(BuildContext context) {
     final hot = streak >= 5;
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 90),
       transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
       child: Row(
         key: ValueKey(streak),
@@ -268,9 +268,10 @@ class TempoPill extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Sem animação de entrada: o ponto acende no quadro da batida
+              // (uma transição de 80 ms atrasava o metrônomo visual).
               for (var i = 1; i <= beatsPerBar.clamp(1, 12); i++)
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 80),
+                Container(
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   width: i == beatInBar ? 9 : 6,
                   height: i == beatInBar ? 9 : 6,
