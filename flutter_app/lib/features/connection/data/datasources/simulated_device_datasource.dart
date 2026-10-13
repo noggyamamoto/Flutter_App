@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import '../../domain/entities/device_event.dart';
+import '../../domain/entities/expected_note_cue.dart';
 import '../../domain/entities/session_config.dart';
 import '../../domain/entities/simulation_note.dart';
 import '../models/device_model.dart';
@@ -109,6 +110,10 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
 
   @override
   Future<void> configure(SessionConfig config) async {}
+
+  // O simulador não tem monitor serial.
+  @override
+  void sendExpectedNotes(List<ExpectedNoteCue> notes) {}
 
   @override
   void scheduleSimulation(List<SimulationNote> notes) {

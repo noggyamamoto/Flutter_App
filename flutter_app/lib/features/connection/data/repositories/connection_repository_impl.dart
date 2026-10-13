@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../domain/entities/device.dart';
 import '../../domain/entities/device_event.dart';
+import '../../domain/entities/expected_note_cue.dart';
 import '../../domain/entities/session_config.dart';
 import '../../domain/entities/simulation_note.dart';
 import '../../domain/repositories/connection_repository.dart';
@@ -127,6 +128,11 @@ class ConnectionRepositoryImpl implements ConnectionRepository {
 
   @override
   Future<void> configure(SessionConfig config) async => _active?.configure(config);
+
+  @override
+  void sendExpectedNotes(List<ExpectedNoteCue> notes) {
+    _active?.sendExpectedNotes(notes);
+  }
 
   @override
   void scheduleSimulation(List<SimulationNote> notes) {

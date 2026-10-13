@@ -30,6 +30,7 @@ class DeviceProtocol {
   static const int sessionStart = 0x06;
   static const int sessionStop = 0x07;
   static const int setTempo = 0x08;
+  static const int expectedNote = 0x09;
 
   // Dispositivo -> app
   static const int announce = 0x81;
@@ -99,12 +100,15 @@ class DeviceProtocol {
 
   // `sessionId` (1..255) identifica a execução: o dispositivo ignora um
   // reenvio com o mesmo id, sem zerar o relógio da sessão de novo.
+  // `beatType`: denominador do compasso (unidade do metrônomo), usado pelo
+  // monitor serial para converter a duração medida em figura.
   Uint8List encodeSessionStart({
     required int bpm,
     required int beatsPerBar,
     required int countInBars,
     required int flags,
     int sessionId = 0,
+    int beatType = 4,
   }) {
     final data = _packet(sessionStart, 8);
     data.setUint16(12, bpm, Endian.little);
@@ -112,6 +116,24 @@ class DeviceProtocol {
     data.setUint8(15, countInBars);
     data.setUint8(16, flags);
     data.setUint8(17, sessionId);
+    data.setUint8(18, beatType.clamp(0, 255));
+    return _bytes(data);
+  }
+
+  // Nota esperada para o monitor serial (PktExpectedNote, 28 bytes).
+  Uint8List encodeExpectedNote({
+    required int index,
+    required int midi,
+    required int onsetMs,
+    required int durationMs,
+    required double durationBeats,
+  }) {
+    final data = _packet(expectedNote, 16);
+    data.setUint16(12, index.clamp(0, 0xFFFF), Endian.little);
+    data.setUint8(14, midi.clamp(0, 127));
+    data.setUint32(16, onsetMs.clamp(0, 0xFFFFFFFF), Endian.little);
+    data.setUint32(20, durationMs.clamp(0, 0xFFFFFFFF), Endian.little);
+    data.setUint16(24, (durationBeats * 1000).round().clamp(0, 0xFFFF), Endian.little);
     return _bytes(data);
   }
 

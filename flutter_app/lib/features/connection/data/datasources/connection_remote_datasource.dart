@@ -1,4 +1,5 @@
 import '../../domain/entities/device_event.dart';
+import '../../domain/entities/expected_note_cue.dart';
 import '../../domain/entities/session_config.dart';
 import '../../domain/entities/simulation_note.dart';
 import '../models/device_model.dart';
@@ -29,6 +30,10 @@ abstract class ConnectionRemoteDataSource {
   // sessão, contagem incluída). 0 = na próxima batida.
   Future<void> setTempo(int bpm, {int atBeat = 0});
   Future<void> configure(SessionConfig config);
+
+  // Notas esperadas para o monitor serial do dispositivo (sem efeito no
+  // modo demonstração).
+  void sendExpectedNotes(List<ExpectedNoteCue> notes);
 
   // Usado apenas pelo dispositivo simulado.
   void scheduleSimulation(List<SimulationNote> notes);

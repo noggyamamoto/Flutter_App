@@ -4,6 +4,7 @@ import 'dart:math';
 import '../../../device_discovery/data/known_devices_store.dart';
 import '../../../device_discovery/domain/discovery_targets.dart';
 import '../../domain/entities/device_event.dart';
+import '../../domain/entities/expected_note_cue.dart';
 import '../../domain/entities/session_config.dart';
 import '../../domain/entities/simulation_note.dart';
 import '../models/device_model.dart';
@@ -304,6 +305,7 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
           countInBars: config.countInBars,
           flags: _flags(config),
           sessionId: _sessionId,
+          beatType: config.beatType,
         ),
         device.address,
         device.port,
@@ -352,6 +354,25 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
       device.address,
       device.port,
     );
+  }
+
+  @override
+  void sendExpectedNotes(List<ExpectedNoteCue> notes) {
+    final device = _device;
+    if (device == null) return;
+    for (final note in notes) {
+      _transport.send(
+        _protocol.encodeExpectedNote(
+          index: note.index,
+          midi: note.midi,
+          onsetMs: note.onsetMs,
+          durationMs: note.durationMs,
+          durationBeats: note.durationBeats,
+        ),
+        device.address,
+        device.port,
+      );
+    }
   }
 
   @override
