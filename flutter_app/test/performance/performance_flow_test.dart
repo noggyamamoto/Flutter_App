@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_app/features/configuration/presentation/providers/configuration_provider.dart';
 import 'package:flutter_app/features/connection/data/datasources/connection_remote_datasource.dart';
 import 'package:flutter_app/features/connection/data/datasources/simulated_device_datasource.dart';
+import 'package:flutter_app/features/connection/domain/entities/device_event.dart';
 import 'package:flutter_app/features/connection/presentation/providers/connection_provider.dart';
 import 'package:flutter_app/features/execution_log/domain/services/execution_console_log.dart';
 import 'package:flutter_app/features/execution_log/presentation/providers/execution_log_provider.dart';
@@ -116,11 +117,45 @@ void main() {
     expect(ready.status, PerformanceStatus.ready);
     expect(ready.structure!.phrases, hasLength(4));
 
+    // Fluidez: a tela só é notificada quando algo visível muda (antes, a
+    // cada 30 ms); o cursor e o metrônomo visual vêm do relógio ao vivo.
+    var updates = 0;
+    container.listen(performanceProvider, (_, _) => updates++);
+    final beatMismatches = <String>[];
+    var beats = 0;
+    final beatsPerBar = ready.structure!.score.beatsPerBar;
+    final beatSub = container.read(connectionRepositoryProvider).events.listen((event) {
+      if (event is! BeatEvent) return;
+      beats++;
+      // Batida local no instante da batida do dispositivo (o pacote pode
+      // chegar alguns ms depois: vale a batida corrente ou a anterior). No
+      // primeiro compasso o relógio ainda está sendo alinhado às batidas.
+      notifier.sampleLiveClock();
+      final live = notifier.live.metronomeBeat.value;
+      if (live < 0 || beats <= beatsPerBar) return;
+      final inBar = live % beatsPerBar;
+      final previous = (live - 1) % beatsPerBar;
+      if (inBar != event.beatInBar && previous != event.beatInBar) {
+        beatMismatches.add('dispositivo ${event.beatInBar} x app $inBar (t=${event.timeMs} ms)');
+      }
+    });
+    addTearDown(beatSub.cancel);
+    final watch = Stopwatch()..start();
+
     await notifier.start();
     expect(container.read(performanceProvider).status, PerformanceStatus.countdown);
 
     await _waitFor(container, (s) => s.status == PerformanceStatus.running);
+    expect(notifier.live.isRunning, isTrue);
     final finished = await _waitFor(container, (s) => s.status == PerformanceStatus.finished);
+    final seconds = watch.elapsedMilliseconds / 1000;
+    // ignore: avoid_print
+    print('${(updates / seconds).toStringAsFixed(1)} atualizações de estado por segundo; '
+        '$beats batidas do dispositivo');
+    expect(updates / seconds, lessThan(12));
+    expect(beats, greaterThan(20));
+    expect(beatMismatches, isEmpty);
+    expect(notifier.live.isRunning, isFalse);
 
     final result = finished.result!;
     // ignore: avoid_print

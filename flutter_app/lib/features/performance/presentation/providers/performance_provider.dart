@@ -38,6 +38,8 @@ import '../../domain/services/performance_timeline.dart';
 
 import '../../domain/usecases/get_midi_file.dart';
 
+import 'performance_live_clock.dart';
+
 
 // ---------------------------------------------------------
 // MIDI DATA SOURCE
@@ -126,8 +128,19 @@ class PerformanceNotifier
   // tempo de entrega dos eventos do dispositivo pela rede).
   static const phraseGraceMs = 500;
 
-  // Intervalo de atualização da tela.
+  // Intervalo da lógica da execução (notas perdidas, fim de frase, áudio).
+  // O cursor e o metrônomo visual são atualizados a cada quadro da tela
+  // pelo relógio ao vivo (`live`), sem reconstruir a tela.
   static const tickInterval = Duration(milliseconds: 30);
+
+  // Cursor, metrônomo visual, contagem e tempo decorrido (mudam a cada
+  // quadro; ficam fora do estado para não reconstruir a tela inteira).
+  final PerformanceLiveClock live = PerformanceLiveClock();
+
+  // Fim da próxima nota esperada: o cursor do estado (usado no destaque da
+  // próxima nota) só é atualizado quando passa deste ponto.
+  PerformanceState? _boundaryState;
+  double _boundary = double.infinity;
 
   // Relógio local alinhado ao relógio da sessão do dispositivo.
   final Stopwatch _clock = Stopwatch();
@@ -171,6 +184,7 @@ class PerformanceNotifier
 
       _ticker?.cancel();
       _events?.cancel();
+      live.clear();
     });
 
     // Estado inicial da performance.
@@ -464,6 +478,40 @@ class PerformanceNotifier
       _clock.elapsedMilliseconds - (_offsetMs ?? 0);
 
 
+  // Atualiza o relógio ao vivo. Chamado a cada quadro pela tela de execução
+  // (movimento suave do cursor) e a cada ciclo da lógica.
+  void sampleLiveClock() {
+
+    final timeline = _timeline;
+    final active = state.status == PerformanceStatus.countdown ||
+        state.status == PerformanceStatus.running;
+
+    if (timeline == null || !active || !_clock.isRunning) {
+      live.clear();
+      return;
+    }
+
+    final now = _nowMs.toDouble();
+
+    live.update(
+      cursor: state.status == PerformanceStatus.running ? timeline.msToBeat(now) : null,
+      beat: timeline.metronomeBeatAt(now),
+      elapsed: max(0, (now - timeline.countInMs) ~/ 1000),
+    );
+  }
+
+
+  double _cursorBoundary() {
+
+    if (!identical(_boundaryState, state)) {
+      _boundaryState = state;
+      _boundary = state.nextExpectedNote?.endBeat ?? double.infinity;
+    }
+
+    return _boundary;
+  }
+
+
   // Horário esperado de cada nota a partir de uma frase.
   void _applyTimings(int fromPhrase) {
 
@@ -561,29 +609,18 @@ class PerformanceNotifier
     final now = _nowMs;
 
     // ---------------- Contagem de entrada ----------------
+    // Tempo e compasso da contagem vêm do relógio ao vivo.
     if (state.status == PerformanceStatus.countdown) {
 
       if (now < timeline.countInMs) {
-
-        final beatMs = 60000 / _metronomeBpm(state.bpm);
-        final beatsPerBar = structure.score.beatsPerBar;
-        final beat = max(0, (now / beatMs).floor());
-
-        final countInBeat = beat % beatsPerBar + 1;
-        final countInBar = beat ~/ beatsPerBar + 1;
-
-        if (countInBeat != state.countInBeat || countInBar != state.countInBar) {
-          state = state.copyWith(
-            countInBeat: countInBeat,
-            countInBar: countInBar,
-          );
-        }
-
+        sampleLiveClock();
         return;
       }
 
       state = state.copyWith(status: PerformanceStatus.running);
     }
+
+    sampleLiveClock();
 
     if (state.status != PerformanceStatus.running) return;
 
@@ -640,16 +677,30 @@ class PerformanceNotifier
       );
     }
 
-    state = state.copyWith(
-      judgement: judgement,
-      streak: missed.isNotEmpty ? 0 : state.streak,
-      cursorBeat: timeline.msToBeat(now.toDouble()),
-      viewPhrase: phrase ?? state.viewPhrase,
-      feedback: feedback,
-      bpm: phrase != null ? timeline.bpmOf(phrase) : state.bpm,
-      elapsed: Duration(milliseconds: max(0, now - timeline.countInMs.round())),
-      precision: missed.isNotEmpty ? _precision() : state.precision,
-    );
+    // O estado (que reconstrói a tela) só muda quando algo visível muda:
+    // nota perdida, troca de trecho ou de andamento, ou o cursor passou do
+    // fim da próxima nota (destaque da nota seguinte).
+    final cursor = timeline.msToBeat(now.toDouble());
+    final viewPhrase = phrase ?? state.viewPhrase;
+    final bpm = phrase != null ? timeline.bpmOf(phrase) : state.bpm;
+    final cursorMoved = cursor != null &&
+        (state.cursorBeat == null || cursor >= _cursorBoundary());
+
+    if (missed.isNotEmpty ||
+        cursorMoved ||
+        viewPhrase != state.viewPhrase ||
+        bpm != state.bpm) {
+
+      state = state.copyWith(
+        judgement: judgement,
+        streak: missed.isNotEmpty ? 0 : state.streak,
+        cursorBeat: cursor,
+        viewPhrase: viewPhrase,
+        feedback: feedback,
+        bpm: bpm,
+        precision: missed.isNotEmpty ? _precision() : state.precision,
+      );
+    }
 
     // Avaliação ao término de cada frase (RFA07).
     while (_nextPhrase < structure.phrases.length &&
@@ -840,17 +891,14 @@ class PerformanceNotifier
       case BeatEvent():
 
         // Alinha o relógio local ao do dispositivo. O menor desvio
-        // observado corresponde à menor latência de rede.
+        // observado corresponde à menor latência de rede. O metrônomo
+        // visual é calculado pelo relógio (sem reconstruir a tela a cada
+        // batida nem depender do atraso de cada pacote).
         final offset = _clock.elapsedMilliseconds - event.timeMs;
 
         if (_offsetMs == null || offset < _offsetMs!) {
           _offsetMs = offset;
         }
-
-        state = state.copyWith(
-          beatInBar: event.beatInBar + 1,
-          beatCount: state.beatCount + 1,
-        );
 
       case NotePlayedEvent():
 
@@ -1163,6 +1211,7 @@ class PerformanceNotifier
 
     _ticker?.cancel();
     _ticker = null;
+    live.clear();
     _events?.cancel();
     _events = null;
     _audio?.stop();
@@ -1177,6 +1226,7 @@ class PerformanceNotifier
 
     _ticker?.cancel();
     _ticker = null;
+    live.clear();
     await _events?.cancel();
     _events = null;
     await _audio?.stop();

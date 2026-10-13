@@ -12,9 +12,9 @@ class DeviceGate extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(connectionProvider);
+    final skipped = ref.watch(connectionProvider.select((c) => c.skipped));
 
-    if (state.skipped) {
+    if (skipped) {
       return const SongsPage();
     }
 

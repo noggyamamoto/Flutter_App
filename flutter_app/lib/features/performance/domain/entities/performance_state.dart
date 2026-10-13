@@ -1,3 +1,4 @@
+import '../../../score/domain/entities/expected_note.dart';
 import '../../../score/domain/entities/note_comparison.dart';
 import '../../../score/domain/entities/score_result.dart';
 import '../../../score/domain/services/score_analyzer.dart';
@@ -78,19 +79,21 @@ class PerformanceState {
   // Posição atual da execução (semínimas).
   final double? cursorBeat;
 
-  // Contagem de entrada: tempo (1..n) e compasso (1..2) atuais.
+  // Contagem de entrada: tempo (1..n) e compasso (1..2) iniciais. Durante a
+  // contagem a tela usa o relógio ao vivo (PerformanceLiveClock).
   final int countInBeat;
   final int countInBar;
 
-  // Metrônomo visual: tempo atual no compasso e contador de batidas.
+  // Metrônomo visual: tempo atual no compasso. Durante a execução a tela
+  // usa o relógio ao vivo (PerformanceLiveClock); este valor é o exibido
+  // sem ele (ex.: telas de teste).
   final int beatInBar;
-  final int beatCount;
 
   // Precisão parcial (0 a 100) e notas tocadas.
   final double precision;
   final int notesPlayed;
 
-  // Tempo desde o início da música.
+  // Tempo desde o início da música exibido sem o relógio ao vivo.
   final Duration elapsed;
 
   // Última frase avaliada.
@@ -132,7 +135,6 @@ class PerformanceState {
     this.countInBeat = 0,
     this.countInBar = 0,
     this.beatInBar = 0,
-    this.beatCount = 0,
     this.precision = 0,
     this.notesPlayed = 0,
     this.elapsed = Duration.zero,
@@ -149,6 +151,20 @@ class PerformanceState {
     this.phraseScores = const {},
   });
 
+  // Próxima nota esperada (ainda sem avaliação) a partir do cursor.
+  ExpectedNote? get nextExpectedNote {
+    final structure = this.structure;
+    if (structure == null || structure.phrases.isEmpty) return null;
+    final cursor = cursorBeat ?? structure.phrases[viewPhrase].startBeat;
+    for (final note in structure.expectedNotes) {
+      if (note.phraseIndex < viewPhrase) continue;
+      if (note.scoreNoteIds.any(feedback.containsKey)) continue;
+      if (note.endBeat <= cursor) continue;
+      return note;
+    }
+    return null;
+  }
+
   PerformanceState copyWith({
     PerformanceStatus? status,
     ScoreStructure? structure,
@@ -161,7 +177,6 @@ class PerformanceState {
     int? countInBeat,
     int? countInBar,
     int? beatInBar,
-    int? beatCount,
     double? precision,
     int? notesPlayed,
     Duration? elapsed,
@@ -191,7 +206,6 @@ class PerformanceState {
       countInBeat: countInBeat ?? this.countInBeat,
       countInBar: countInBar ?? this.countInBar,
       beatInBar: beatInBar ?? this.beatInBar,
-      beatCount: beatCount ?? this.beatCount,
       precision: precision ?? this.precision,
       notesPlayed: notesPlayed ?? this.notesPlayed,
       elapsed: elapsed ?? this.elapsed,
