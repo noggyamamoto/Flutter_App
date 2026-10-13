@@ -4,6 +4,15 @@ Aplicativo Flutter do TCC **Sistema de Processamento de Áudio com Feedback em T
 
 O aluno toca a partitura exibida no app; o [dispositivo embarcado](https://github.com/noggyamamoto/firmware_I2S) (ESP32 + microfone INMP441) identifica as notas tocadas e as envia ao app, que compara cada nota com a partitura **MusicXML** e mostra o resultado na hora: verde para acerto, amarelo para aproximado e vermelho para erro, como nos aplicativos de prática musical (Simply Piano, Yousician, Meludia).
 
+### Novidades desta versão
+
+| Feature (commit) | O que mudou |
+|---|---|
+| **Avaliação sem erros falsos** (`avaliacao-sem-erros-falsos`) | Com o dispositivo real, a nota certa tocada no tempo certo era contada como erro: o app marcava a nota como perdida antes de o evento chegar pela rede (confirmação da altura + Wi-Fi, 100–300 ms) e depois recusava a nota atrasada como "extra". Agora a nota só é perdida após a janela + 350 ms de entrega, e uma nota que chega atrasada (com o instante de ataque do dispositivo dentro da janela) substitui a "perdida" |
+| **Descoberta automática do dispositivo** (`descoberta-automatica-do-dispositivo`, feature `device_discovery`) | O app encontra o dispositivo sozinho na mesma rede, também no navegador: endereços já usados, `partitura.local` (mDNS), `192.168.4.1` e varredura da sub-rede |
+| **Log da execução no console** (`log-da-execucao-no-console`, feature `execution_log`) | Durante a execução o console do navegador mostra as notas esperadas (C4, B6...) e as figuras (semínima, colcheia, fusa...) e o que foi captado pelo microfone; as notas esperadas também vão para o monitor serial do dispositivo |
+| **Metrônomo sonoro com o dispositivo** (`metronomo-sonoro-com-dispositivo`) | O metrônomo do app toca também com o dispositivo conectado (antes, só no modo demonstração), com um estalo sem altura que o microfone não confunde com nota |
+
 ---
 
 ## Sumário
@@ -65,7 +74,7 @@ flowchart LR
 
 | Requisito (TCC) | Funcionalidade | Onde |
 |---|---|---|
-| **RFA01** / RU02 – Pareamento | Busca por broadcast (UDP), conexão pelo IP, heartbeat, modo demonstração | `features/connection` |
+| **RFA01** / RU02 – Pareamento | Busca automática (broadcast UDP, endereços já usados, `partitura.local`, varredura da sub-rede – também no navegador), conexão pelo IP, heartbeat, modo demonstração | `features/connection`, `features/device_discovery` |
 | **RFA02** / RU03 – Catálogo | Repertório por dificuldade (fácil, médio, difícil) com busca | `features/songs` |
 | **RFA03** / RU04–RU06 – Configuração | Música guia, metrônomo sonoro e visual, tamanho dos trechos, ampliação | `features/configuration` |
 | **RFA04** / RU08 – Partitura adaptada | Trechos curtos, símbolos ampliados, ajuste à tela | `features/score/presentation/notation` |
@@ -88,7 +97,7 @@ flowchart LR
 |---|---|---|---|
 | Android / iOS | UDP (porta 54322) | Broadcast ou IP | iOS pede permissão de rede local (`NSLocalNetworkUsageDescription`) |
 | Windows / macOS / Linux | UDP (porta 54322) | Broadcast ou IP | — |
-| Web (Chrome, Edge, Firefox, Safari) | WebSocket `ws://IP/ws` | IP informado ou `192.168.4.1` (rede própria do dispositivo) | Servir o app por `http://` (páginas `https://` bloqueiam `ws://`) |
+| Web (Chrome, Edge, Firefox, Safari) | WebSocket `ws://IP/ws` | Automática: IPs já usados, `partitura.local`, `192.168.4.1` e varredura das sub-redes comuns; ou IP informado | Servir o app por `http://` (páginas `https://` bloqueiam `ws://`) |
 | Todas | Modo demonstração | — | Um "aluno virtual" toca a partitura com pequenos erros, sem hardware |
 
 O layout se adapta ao tamanho da tela (ver [seção 7](#7-interface-de-execução-e-feedback)): celular em pé, celular deitado, tablet e navegador/desktop.
@@ -137,6 +146,8 @@ flutter_app/
 │   └── features/
 │       ├── auth/                      # login, cadastro, perfil
 │       ├── connection/                # dispositivo: protocolo, transporte UDP/WebSocket, simulador
+│       ├── device_discovery/          # onde procurar o dispositivo (mDNS, IPs já usados, sub-redes)
+│       ├── execution_log/             # log da execução no console (esperado x captado)
 │       ├── songs/                     # repertório (Firestore)
 │       ├── configuration/             # preferências da execução
 │       ├── score/                     # partitura: parser MusicXML, frases, avaliação, notação
@@ -156,6 +167,8 @@ flutter_app/
 |---|---|---|
 | `auth` | Autenticação (Firebase Auth) e perfil | `AuthNotifier`, `AuthGate`, `LoginPage` |
 | `connection` | Descoberta, pareamento, heartbeat, eventos do dispositivo, simulador | `ConnectionNotifier`, `ConnectionRepositoryImpl`, `DeviceProtocol`, `UdpTransport` |
+| `device_discovery` | Endereços da busca automática e histórico dos endereços pareados | `DiscoveryTargets`, `KnownDevicesStore` |
+| `execution_log` | Log da execução no console: notas esperadas e captadas com nome (C4) e figura (semínima) | `ExecutionConsoleLog`, `NoteNaming` |
 | `songs` | Catálogo de músicas por dificuldade | `SongsPage`, `Song` |
 | `configuration` | Preferências (música guia, metrônomo, trechos, zoom) | `ConfigurationNotifier`, `PerformanceSettings` |
 | `score` | Leitura do MusicXML, frases, melodia avaliada, avaliação e renderização | `MusicXmlParser`, `ScoreAnalyzer`, `PerformanceEvaluator`, `ScoreEngraver` |
@@ -577,6 +590,26 @@ sequenceDiagram
 - O `SESSION_START` leva um `session_id`. Se a primeira batida não chega e o comando é reenviado, o firmware ignora a repetição em vez de zerar o relógio de novo; batidas de uma execução anterior são descartadas.
 - O `SET_TEMPO` informa a batida (`at_beat`, contagem incluída) em que o novo andamento começa. Ele é enviado no momento em que a redução é decidida e reenviado meio tempo antes da frase; o firmware troca o BPM exatamente na batida do início da frase, mesmo que o pacote chegue antes ou que o primeiro envio se perca.
 - As notas são avaliadas pelo carimbo de tempo do próprio dispositivo; o relógio local só posiciona o cursor e é alinhado pela menor latência observada nas batidas.
+- Como o evento de uma nota chega ao app 100–300 ms depois do ataque (confirmação da altura no dispositivo + rede), uma nota só é marcada como perdida depois da janela de avaliação **mais** `deliveryLatencyMs` (350 ms); se ainda assim o evento chegar depois, a nota "perdida" é substituída pela tocada, sem contar nota extra. O primeiro `session_id` é aleatório, para não coincidir com uma execução ainda ativa no dispositivo depois de recarregar o app.
+- O metrônomo sonoro do app toca também com o dispositivo conectado; nesse caso o clique é um estalo sem altura definida (`ClickSound.wood`), que o microfone não confunde com nota. O áudio começa no ponto em que a sessão está, alinhado às batidas do dispositivo.
+
+#### Log da execução no console
+
+Durante a execução, o console (no navegador: **F12 › Console**) mostra, no relógio do dispositivo (0 ms = primeira batida da contagem):
+
+```
+[Execução] Início: 100 BPM (metrônomo 100), compasso 4/4, contagem de 2 compasso(s) = 4800 ms (dispositivo). ...
+[Esperado] #0    C4   semínima                 t=  4800 ms  dur  600 ms
+[Captado ] C4   261.7 Hz                       t=  4810 ms  → Perfeito! (esperado #0 C4, +10 ms)
+[Captado ] C4   solta: semínima                t=  5380 ms  dur 570 ms
+[Esperado] #1    D4   colcheia                 t=  5400 ms  dur  300 ms
+[Captado ] E4   329.6 Hz                       t=  5420 ms  → Nota errada (esperado #1 D4, +20 ms)
+[Perdida ] #2    B6   fusa                     t=  5700 ms  (não foi captada)
+[Trecho  ] 1: 62% (altura 50%, ritmo 75%) – 1/3 corretas, 1 perdidas, 0 extras
+[Execução] Concluída: geral 62.0%, ...
+```
+
+As mesmas notas esperadas são enviadas ao dispositivo (`EXPECTED_NOTE`) antes de cada trecho e aparecem no monitor serial ao lado das notas captadas.
 
 ### 5.4 Avaliação de uma nota
 
@@ -741,7 +774,7 @@ flutter build web           # Web (servir a pasta build/web por http://)
 
 Sem o hardware, use **"Usar modo demonstração"** na tela de conexão: um aluno virtual toca a partitura com pequenos erros, em qualquer plataforma.
 
-Na **web**, informe o IP do dispositivo em "Conectar pelo IP" (o IP aparece no menu serial do firmware, opção 3) ou conecte o computador à rede própria do dispositivo e use `192.168.4.1`.
+A busca é automática ao abrir a tela de conexão: o app consulta os endereços em que o dispositivo já foi encontrado, `partitura.local` (anunciado pelo firmware por mDNS), `192.168.4.1` (rede própria do dispositivo) e, se nada responder, a sub-rede inteira – na **web**, sem broadcast, as sub-redes mais comuns de modems domésticos (pode levar até 1 minuto). Se a rede usar uma faixa de IP incomum, informe o IP exibido no topo do menu serial (ou `partitura.local`) em "Conectar pelo IP".
 
 ---
 
@@ -757,8 +790,11 @@ flutter test
 |---|---|---|
 | Parser MusicXML | `test/score/musicxml_parser_test.dart` | Atributos, vozes, acordes, ligaduras, acidentes calculados, claves, `.mxl`, todo o repertório |
 | Renderização | `test/score/score_render_test.dart` | Todo o repertório em 5 larguras: nenhum elemento fora da área, todas as notas posicionadas, desenho sem exceções |
-| Avaliação | `test/score/performance_evaluator_test.dart` | Linha do tempo e avaliação nota a nota/por frase |
-| Fluxo de execução | `test/performance/performance_flow_test.dart` | Música inteira com o dispositivo simulado, reprovação de trecho, redução automática de BPM (sem avisos sobre a partitura), sequência e notas por trecho |
+| Avaliação | `test/score/performance_evaluator_test.dart` | Linha do tempo e avaliação nota a nota/por frase; nota certa que chega atrasada pela rede não vira erro |
+| Fluxo de execução | `test/performance/performance_flow_test.dart` | Música inteira com o dispositivo simulado (inclusive com as notas chegando 300 ms depois do ataque), reprovação de trecho, redução automática de BPM (sem avisos sobre a partitura), sequência, notas por trecho e log no console |
+| Log da execução | `test/performance/execution_log_test.dart` | Nomes (C4, B6) e figuras, linhas do console, pacotes `EXPECTED_NOTE` e `beat_type` |
+| Metrônomo | `test/performance/metronome_click_test.dart` | Clique do dispositivo audível e sem altura definida |
+| Descoberta | `test/connection/device_discovery_test.dart` | Varredura no navegador, prioridade do último endereço, histórico |
 | Sincronismo | `test/performance/performance_timeline_sync_test.dart`, `test/connection/session_sync_test.dart` | BPM inteiro do metrônomo na linha do tempo (4/4, 6/8, 2/2), `session_id` mantido no reenvio, batidas antigas descartadas, `at_beat` do `SET_TEMPO` |
 | Telas | `test/performance/performance_screens_test.dart` | Tela de execução em celular, celular deitado, tablet e web: pronta, em execução e com sugestão de BPM (nada sobre a partitura) |
 | Widgets | `test/widget_test.dart` | Partitura em todas as frases/larguras, conexão, HUD e tela de incentivo |
