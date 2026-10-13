@@ -35,15 +35,45 @@ class _FileScoreRepository implements ScoreRepository {
 // Áudio silencioso (sem plugin nativo nos testes).
 class _SilentAudio extends PerformanceAudio {
   int played = 0;
+  int preloaded = 0;
 
   @override
   Future<Uint8List> render(SynthRequest request) async => Uint8List(0);
+
+  @override
+  Future<void> preload(Uint8List wav) async => preloaded++;
 
   @override
   Future<void> play(Uint8List wav, {Duration position = Duration.zero}) async => played++;
 
   @override
   Future<void> stop() async {}
+}
+
+// Registra a ordem de geração, pré-carga e reprodução do áudio.
+class _RecordingAudio extends _SilentAudio {
+  Uint8List? _ready;
+  int playedPreloaded = 0;
+
+  @override
+  Future<Uint8List> render(SynthRequest request) async {
+    await Future<void>.delayed(const Duration(milliseconds: 15));
+    return Uint8List(1);
+  }
+
+  @override
+  Future<void> preload(Uint8List wav) async {
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    _ready = wav;
+    preloaded++;
+  }
+
+  @override
+  Future<void> play(Uint8List wav, {Duration position = Duration.zero}) async {
+    if (identical(wav, _ready)) playedPreloaded++;
+    _ready = null;
+    played++;
+  }
 }
 
 const _song = Song(
@@ -55,13 +85,17 @@ const _song = Song(
   arquivoMidi: 'sinfonia_coral_melodia_16_compassos.mid',
 );
 
-ProviderContainer _container(ConnectionRemoteDataSource simulator, {List<String>? log}) {
+ProviderContainer _container(
+  ConnectionRemoteDataSource simulator, {
+  List<String>? log,
+  PerformanceAudio? audio,
+}) {
   return ProviderContainer(
     overrides: [
       executionConsoleLogProvider.overrideWithValue(ExecutionConsoleLog((line) => log?.add(line))),
       simulatedDeviceDataSourceProvider.overrideWithValue(simulator),
       getMusicScoreProvider.overrideWithValue(GetMusicScore(_FileScoreRepository())),
-      performanceAudioProvider.overrideWithValue(_SilentAudio()),
+      performanceAudioProvider.overrideWithValue(audio ?? _SilentAudio()),
     ],
   );
 }
@@ -238,13 +272,48 @@ void main() {
     expect(stopped.result!.completed, isFalse);
   }, timeout: const Timeout(Duration(seconds: 60)));
 
+  // Metrônomo sonoro sem atraso: a contagem é gerada e carregada no player
+  // antes do INICIAR e cada trecho é carregado no outro player enquanto o
+  // anterior toca (começa na hora, sem preparar o player na troca).
+  test('metrônomo sonoro: contagem e trechos já carregados antes de tocar', () async {
+    SharedPreferences.setMockInitialValues({
+      'config.metronomeSound': true,
+      'config.guideAudio': true,
+    });
+    final audio = _RecordingAudio();
+    final container = _container(
+      SimulatedDeviceDataSource(wrongNoteRate: 0, missedNoteRate: 0, timingJitterMs: 25, seed: 1),
+      audio: audio,
+    );
+    addTearDown(container.dispose);
+
+    container.read(configurationProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await container.read(connectionProvider.notifier).useSimulator();
+    final notifier = container.read(performanceProvider.notifier);
+    await notifier.loadSong(_song);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(audio.preloaded, 1);                                     // contagem pronta
+
+    await notifier.start();
+    await _waitFor(container, (s) => s.status == PerformanceStatus.finished);
+
+    // Contagem + 4 trechos, todos já carregados quando começaram a tocar.
+    expect(audio.played, 5);
+    expect(audio.playedPreloaded, 5);
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
   test('ritmo irregular reduz o BPM automaticamente (RU12)', () async {
     SharedPreferences.setMockInitialValues({
-      'config.metronomeSound': false,
+      'config.metronomeSound': true,
       'config.autoTempo': true,
     });
+    // Com o metrônomo sonoro: o trecho regenerado no novo andamento também
+    // é carregado antes de tocar.
+    final audio = _RecordingAudio();
     final container = _container(
       SimulatedDeviceDataSource(wrongNoteRate: 0, missedNoteRate: 0, timingJitterMs: 170, seed: 3),
+      audio: audio,
     );
     addTearDown(container.dispose);
 
@@ -277,5 +346,7 @@ void main() {
     expect(messageWhileRunning, isNull);
     // RU12: a redução aparece no indicador de andamento.
     expect(minBpm, lessThan(240));
+    expect(audio.played, greaterThan(2));
+    expect(audio.playedPreloaded, audio.played);
   }, timeout: const Timeout(Duration(seconds: 60)));
 }
