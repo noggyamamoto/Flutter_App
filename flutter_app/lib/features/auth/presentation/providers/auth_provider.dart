@@ -200,25 +200,41 @@ class AuthNotifier extends Notifier<AuthState> {
 
   @override
   AuthState build() {
+    final auth = ref.read(firebaseAuthProvider);
+
     // Verifica se existe um usuário autenticado.
-    final firebaseUser =
-        ref.read(firebaseAuthProvider).currentUser;
+    final firebaseUser = auth.currentUser;
 
     // Se existir usuário, considera autenticado.
     if (firebaseUser != null) {
-      return AuthState(
-        status: AuthStatus.authenticated,
-        user: AppUser(
-          id: firebaseUser.uid,
-          nome: firebaseUser.displayName ?? '',
-          email: firebaseUser.email ?? '',
-        ),
-      );
+      return _authenticated(firebaseUser);
     }
 
-    // Caso contrário, o usuário está deslogado.
-    return const AuthState(
-      status: AuthStatus.unauthenticated,
+    // No navegador a sessão salva é restaurada de forma assíncrona: até o
+    // primeiro aviso do Firebase o estado fica "inicial" (carregando), em
+    // vez de mostrar a tela de login a quem já estava conectado.
+    auth.authStateChanges().first.then((user) {
+      if (state.status != AuthStatus.initial) return;
+      state = user != null
+          ? _authenticated(user)
+          : const AuthState(status: AuthStatus.unauthenticated);
+    }, onError: (Object _) {
+      if (state.status == AuthStatus.initial) {
+        state = const AuthState(status: AuthStatus.unauthenticated);
+      }
+    });
+
+    return const AuthState();
+  }
+
+  AuthState _authenticated(User user) {
+    return AuthState(
+      status: AuthStatus.authenticated,
+      user: AppUser(
+        id: user.uid,
+        nome: user.displayName ?? '',
+        email: user.email ?? '',
+      ),
     );
   }
 
