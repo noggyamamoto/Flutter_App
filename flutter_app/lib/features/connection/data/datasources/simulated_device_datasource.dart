@@ -19,6 +19,10 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
   final double missedNoteRate;
   final int timingJitterMs;
 
+  // Atraso de entrega das notas (confirmação da altura + rede), como no
+  // dispositivo real: o evento chega depois, mas com o instante do ataque.
+  final int noteDeliveryDelayMs;
+
   final _events = StreamController<DeviceEvent>.broadcast();
   final Random _random;
 
@@ -42,6 +46,7 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
     this.wrongNoteRate = 0.06,
     this.missedNoteRate = 0.04,
     this.timingJitterMs = 35,
+    this.noteDeliveryDelayMs = 0,
     int? seed,
   }) : _random = Random(seed);
 
@@ -125,7 +130,7 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
 
       _queue.add(
         _Scheduled(
-          onset,
+          onset + noteDeliveryDelayMs,
           NotePlayedEvent(
             midi: midi,
             frequency: frequency.toDouble(),
@@ -136,7 +141,7 @@ class SimulatedDeviceDataSource implements ConnectionRemoteDataSource {
       );
       _queue.add(
         _Scheduled(
-          onset + duration,
+          onset + duration + noteDeliveryDelayMs,
           NoteReleasedEvent(midi: midi, durationMs: duration, timeMs: onset + duration),
         ),
       );

@@ -19,12 +19,19 @@ class EvaluationTolerance {
   // Duração máxima considerada (o som do teclado decai naturalmente).
   final int maxDurationMs;
 
+  // Tempo que a nota leva para chegar ao app depois de tocada: confirmação
+  // da altura no dispositivo (~50 ms) + rede Wi-Fi/WebSocket. Uma nota só é
+  // considerada perdida depois da janela + este tempo, porque o horário
+  // avaliado é o do dispositivo (instante do ataque), não o da chegada.
+  final int deliveryLatencyMs;
+
   const EvaluationTolerance({
     this.perfectOnsetMs = 70,
     this.minWindowMs = 160,
     this.maxWindowMs = 400,
     this.windowFraction = 0.5,
     this.maxDurationMs = 1500,
+    this.deliveryLatencyMs = 350,
   });
 }
 
@@ -111,10 +118,13 @@ class PerformanceEvaluator {
       final previous = _results[note.index];
 
       // Só substitui um resultado anterior se a nova nota for melhor
-      // (ex.: tocou errado e corrigiu logo em seguida).
+      // (ex.: tocou errado e corrigiu logo em seguida). Uma nota marcada como
+      // perdida pode ser substituída: o pacote dela chegou atrasado pela
+      // rede, mas o instante do ataque (relógio do dispositivo) está dentro
+      // da janela. Antes ela era recusada e contada como nota extra (erro).
       if (previous != null &&
-          (previous.feedback == NoteFeedback.missed ||
-              previous.pitchScore >= pitch)) {
+          previous.feedback != NoteFeedback.missed &&
+          previous.pitchScore >= pitch) {
         continue;
       }
 
@@ -132,8 +142,10 @@ class PerformanceEvaluator {
       return null;
     }
 
-    // Uma tentativa substituída conta como nota extra.
-    if (_results.containsKey(best.index)) {
+    // Uma tentativa substituída conta como nota extra (uma nota "perdida"
+    // que chegou atrasada não é tentativa).
+    final replaced = _results[best.index];
+    if (replaced != null && replaced.feedback != NoteFeedback.missed) {
       _extras[best.phraseIndex] = (_extras[best.phraseIndex] ?? 0) + 1;
     }
 
@@ -179,13 +191,14 @@ class PerformanceEvaluator {
     return updated;
   }
 
-  // Marca como perdidas as notas cuja janela já passou.
+  // Marca como perdidas as notas cuja janela (mais o tempo de entrega dos
+  // eventos do dispositivo) já passou.
   List<NoteComparison> advance(int nowMs) {
     final missed = <NoteComparison>[];
     for (final note in notes) {
       final onset = _onsetMs[note.index];
       if (onset == null || _results.containsKey(note.index)) continue;
-      if (nowMs > onset + _window(note.index)) {
+      if (nowMs > onset + _window(note.index) + tolerance.deliveryLatencyMs) {
         final comparison = NoteComparison(
           expected: note,
           playedMidi: null,
@@ -281,6 +294,10 @@ class PerformanceEvaluator {
   }
 
   NoteComparison? resultOf(int expectedIndex) => _results[expectedIndex];
+
+  // Horário e duração esperados de uma nota (null antes de definidos).
+  int? onsetOf(int expectedIndex) => _onsetMs[expectedIndex];
+  int? durationOf(int expectedIndex) => _durationMs[expectedIndex];
 
   List<NoteComparison> get comparisons {
     final list = _results.values.toList()

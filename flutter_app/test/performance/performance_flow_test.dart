@@ -134,6 +134,36 @@ void main() {
     expect(finished.phraseScores.keys, containsAll([0, 1, 2, 3]));
   }, timeout: const Timeout(Duration(seconds: 60)));
 
+  // Dispositivo real: cada nota chega ao app ~300 ms depois do ataque
+  // (confirmação da altura + Wi-Fi/WebSocket). As notas certas, no tempo
+  // certo, não podem virar "perdidas" + "extras".
+  test('notas que chegam atrasadas pela rede continuam corretas', () async {
+    final container = _container(
+      SimulatedDeviceDataSource(
+        wrongNoteRate: 0,
+        missedNoteRate: 0,
+        timingJitterMs: 25,
+        noteDeliveryDelayMs: 300,
+        seed: 4,
+      ),
+    );
+    addTearDown(container.dispose);
+    container.read(configurationProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    await container.read(connectionProvider.notifier).useSimulator();
+    final notifier = container.read(performanceProvider.notifier);
+    await notifier.loadSong(_song);
+    await notifier.start();
+
+    final finished = await _waitFor(container, (s) => s.status == PerformanceStatus.finished);
+    final result = finished.result!;
+    expect(result.completed, isTrue);
+    expect(result.extraNotes, 0);
+    expect(result.pitchAccuracy, greaterThan(95));
+    expect(result.overall, greaterThan(80));
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
   test('frase abaixo de 50% interrompe a execução e permite repetir', () async {
     final container = _container(
       SimulatedDeviceDataSource(missedNoteRate: 1, seed: 2),

@@ -119,8 +119,9 @@ class PerformanceNotifier
   // Compassos de contagem antes da música (RFA05).
   static const countInBars = 2;
 
-  // Tempo extra após o fim da frase para receber as últimas notas.
-  static const phraseGraceMs = 400;
+  // Tempo extra após o fim da frase para receber as últimas notas (inclui o
+  // tempo de entrega dos eventos do dispositivo pela rede).
+  static const phraseGraceMs = 500;
 
   // Intervalo de atualização da tela.
   static const tickInterval = Duration(milliseconds: 30);
@@ -759,8 +760,11 @@ class PerformanceNotifier
 
         final timeline = _timeline;
 
-        // Notas durante a contagem de entrada são ignoradas.
-        if (timeline == null || event.timeMs < timeline.countInMs - 250) return;
+        // Notas durante a contagem de entrada são ignoradas. A margem é a
+        // janela máxima de avaliação: a primeira nota tocada um pouco antes
+        // do tempo ainda é comparada com a primeira nota da música.
+        final margin = _evaluator?.tolerance.maxWindowMs ?? 400;
+        if (timeline == null || event.timeMs < timeline.countInMs - margin) return;
 
         final comparison = _evaluator?.onNoteOn(
           midi: event.midi,

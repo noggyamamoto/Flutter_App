@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import '../../domain/entities/device_event.dart';
 import '../../domain/entities/session_config.dart';
@@ -28,8 +29,11 @@ class ConnectionRemoteDataSourceImpl implements ConnectionRemoteDataSource {
   DateTime _lastPong = DateTime.now();
   bool _sessionConfirmed = false;
 
-  // Identificador da execução atual (1..255), ecoado nas batidas.
-  int _sessionId = 0;
+  // Identificador da execução atual (1..255), ecoado nas batidas. Começa em
+  // um valor aleatório: ao recarregar o app, o primeiro id não coincide com
+  // o de uma execução que ainda esteja ativa no dispositivo (o firmware
+  // ignoraria o novo início como repetição e o relógio não seria zerado).
+  int _sessionId = Random().nextInt(255);
 
   ConnectionRemoteDataSourceImpl({UdpTransport? transport})
       : _transport = transport ?? UdpTransport();
