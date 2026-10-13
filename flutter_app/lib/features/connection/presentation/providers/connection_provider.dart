@@ -154,6 +154,12 @@ class ConnectionNotifier extends Notifier<DeviceConnectionState> {
         message: 'A conexão com o dispositivo foi perdida.',
       );
     } else if (event is DeviceStatusEvent) {
+      // Diagnóstico enviado a cada segundo: só notifica as telas quando o
+      // valor exibido (dBm / dB inteiros) muda.
+      if (event.rssi == state.rssi &&
+          event.noiseFloorDb.round() == state.noiseFloorDb?.round()) {
+        return;
+      }
       state = state.copyWith(
         rssi: event.rssi,
         noiseFloorDb: event.noiseFloorDb,

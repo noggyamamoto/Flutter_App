@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'notation_items.dart';
@@ -138,9 +139,13 @@ class ScorePainter extends CustomPainter {
 
 // Cursor de execução (linha vertical que acompanha o tempo) e destaque da
 // próxima nota esperada, redesenhados a cada quadro.
+//
+// Com `liveCursor`, o cursor é redesenhado diretamente quando o valor muda
+// (sem reconstruir widgets); `cursorBeat` é usado quando ele está vazio.
 class ScoreCursorPainter extends CustomPainter {
   final EngravedScore layout;
   final double? cursorBeat;
+  final ValueListenable<double?>? liveCursor;
   final Set<int> activeNoteIds;
   final ScorePalette palette;
 
@@ -148,8 +153,9 @@ class ScoreCursorPainter extends CustomPainter {
     required this.layout,
     required this.cursorBeat,
     required this.activeNoteIds,
+    this.liveCursor,
     this.palette = const ScorePalette(),
-  });
+  }) : super(repaint: liveCursor);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -165,7 +171,7 @@ class ScoreCursorPainter extends CustomPainter {
       );
     }
 
-    final beat = cursorBeat;
+    final beat = liveCursor?.value ?? cursorBeat;
     if (beat == null) return;
     final located = layout.locate(beat);
     if (located == null) return;
@@ -195,6 +201,7 @@ class ScoreCursorPainter extends CustomPainter {
   bool shouldRepaint(covariant ScoreCursorPainter old) =>
       old.layout != layout ||
       old.cursorBeat != cursorBeat ||
+      old.liveCursor != liveCursor ||
       old.activeNoteIds != activeNoteIds ||
       old.palette != palette;
 }

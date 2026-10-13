@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../score/domain/entities/musical_score.dart';
@@ -33,6 +34,10 @@ class ScoreDisplay extends StatefulWidget {
   // Posição atual da execução (semínimas) ou null.
   final double? cursorBeat;
 
+  // Posição ao vivo (atualizada a cada quadro): move o cursor e rola a
+  // partitura sem reconstruir o widget. Vazia, vale `cursorBeat`.
+  final ValueListenable<double?>? liveCursor;
+
   // Ampliação dos símbolos (1.0 = normal).
   final double zoom;
 
@@ -55,6 +60,7 @@ class ScoreDisplay extends StatefulWidget {
     this.noteColors = const {},
     this.activeNoteIds = const {},
     this.cursorBeat,
+    this.liveCursor,
     this.zoom = 1.2,
     this.palette = const ScorePalette(),
     this.scrollable = true,
@@ -78,9 +84,34 @@ class _ScoreDisplayState extends State<ScoreDisplay> {
   int? _cursorSystem;
 
   @override
+  void initState() {
+    super.initState();
+    widget.liveCursor?.addListener(_onLiveCursor);
+  }
+
+  @override
+  void didUpdateWidget(covariant ScoreDisplay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.liveCursor != widget.liveCursor) {
+      oldWidget.liveCursor?.removeListener(_onLiveCursor);
+      widget.liveCursor?.addListener(_onLiveCursor);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.liveCursor?.removeListener(_onLiveCursor);
     _scroll.dispose();
     super.dispose();
+  }
+
+  double? get _cursorBeat => widget.liveCursor?.value ?? widget.cursorBeat;
+
+  // Cursor ao vivo: só a rolagem é verificada (o desenho é feito pelo
+  // ScoreCursorPainter, que escuta o mesmo valor).
+  void _onLiveCursor() {
+    final layout = _layout;
+    if (layout != null) _followCursor(layout);
   }
 
   EngravedScore _layoutFor(double width, double height) {
@@ -108,8 +139,8 @@ class _ScoreDisplayState extends State<ScoreDisplay> {
   }
 
   // Mantém visível o sistema em que está o cursor.
-  void _followCursor(EngravedScore layout, double viewport) {
-    final beat = widget.cursorBeat;
+  void _followCursor(EngravedScore layout) {
+    final beat = _cursorBeat;
     if (beat == null || !widget.scrollable) return;
     final located = layout.locate(beat);
     if (located == null) return;
@@ -146,7 +177,7 @@ class _ScoreDisplayState extends State<ScoreDisplay> {
       builder: (context, constraints) {
         final width = constraints.maxWidth.isFinite ? constraints.maxWidth : 400.0;
         final layout = _layoutFor(width, constraints.maxHeight);
-        _followCursor(layout, constraints.maxHeight);
+        _followCursor(layout);
 
         final content = SizedBox(
           width: width,
@@ -160,6 +191,7 @@ class _ScoreDisplayState extends State<ScoreDisplay> {
                     painter: ScoreCursorPainter(
                       layout: layout,
                       cursorBeat: widget.cursorBeat,
+                      liveCursor: widget.liveCursor,
                       activeNoteIds: widget.activeNoteIds,
                       palette: widget.palette,
                     ),

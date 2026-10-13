@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../../../core/theme/app_colors.dart';
 
@@ -20,9 +21,11 @@ import '../../../gamification/presentation/providers/gamification_provider.dart'
 import '../../../history/presentation/providers/history_provider.dart';
 
 import '../../../score/domain/entities/expected_note.dart';
+import '../../../score/domain/entities/note_comparison.dart';
 
 import '../../../songs/domain/entities/song.dart';
 
+import '../providers/performance_live_clock.dart';
 import '../providers/performance_provider.dart';
 
 import '../widgets/countdown_widget.dart';
@@ -59,15 +62,34 @@ class PerformancePage
 
 
 class _PerformancePageState
-    extends ConsumerState<PerformancePage> {
+    extends ConsumerState<PerformancePage>
+    with SingleTickerProviderStateMixin {
 
   // Evita salvar a mesma execução duas vezes.
   bool _saving = false;
+
+  // Atualiza o relógio ao vivo a cada quadro da tela durante a contagem e a
+  // execução: o cursor e o metrônomo visual andam no ritmo da tela, sem
+  // reconstruir a página.
+  late final Ticker _frameTicker;
+
+  // Cores das notas e destaque da próxima nota, recalculados somente quando
+  // o feedback / a próxima nota mudam (a partitura não é redesenhada à toa).
+  Map<int, NoteFeedback>? _colorsSource;
+  Map<int, Color> _colors = const {};
+  ExpectedNote? _activeSource;
+  Set<int> _activeIds = const {};
+
+  PerformanceLiveClock get _live => ref.read(performanceProvider.notifier).live;
 
   @override
   void initState() {
 
     super.initState();
+
+    _frameTicker = createTicker(
+      (_) => ref.read(performanceProvider.notifier).sampleLiveClock(),
+    );
 
     // Carrega a partitura depois que
     // a tela estiver inicializada.
@@ -86,6 +108,51 @@ class _PerformancePageState
 
 
   @override
+  void dispose() {
+
+    _frameTicker.dispose();
+
+    super.dispose();
+  }
+
+
+  // Liga o relógio por quadro somente durante a contagem e a execução.
+  void _syncFrameTicker(PerformanceState state) {
+
+    final active = state.status == PerformanceStatus.countdown ||
+        state.status == PerformanceStatus.running;
+
+    if (active && !_frameTicker.isActive) {
+      _frameTicker.start();
+    } else if (!active && _frameTicker.isActive) {
+      _frameTicker.stop();
+    }
+  }
+
+
+  Map<int, Color> _noteColors(Map<int, NoteFeedback> feedback) {
+
+    if (!identical(feedback, _colorsSource)) {
+      _colorsSource = feedback;
+      _colors = FeedbackColors.map(feedback);
+    }
+
+    return _colors;
+  }
+
+
+  Set<int> _activeNoteIds(ExpectedNote? next) {
+
+    if (!identical(next, _activeSource)) {
+      _activeSource = next;
+      _activeIds = next == null ? const {} : next.scoreNoteIds.toSet();
+    }
+
+    return _activeIds;
+  }
+
+
+  @override
   Widget build(
     BuildContext context,
   ) {
@@ -100,6 +167,7 @@ class _PerformancePageState
     ref.listen<PerformanceState>(
       performanceProvider,
       (previous, next) {
+        _syncFrameTicker(next);
         if (previous?.status != PerformanceStatus.finished &&
             next.status == PerformanceStatus.finished) {
           _finishPerformance(next);
@@ -389,28 +457,16 @@ class _PerformancePageState
   }
 
 
-  // Próxima nota esperada (ainda sem avaliação) a partir do cursor.
-  ExpectedNote? _nextExpected(PerformanceState state) {
-
-    final structure = state.structure!;
-    final cursor = state.cursorBeat ?? structure.phrases[state.viewPhrase].startBeat;
-
-    for (final note in structure.expectedNotes) {
-      if (note.phraseIndex < state.viewPhrase) continue;
-      if (note.scoreNoteIds.any(state.feedback.containsKey)) continue;
-      if (note.endBeat <= cursor) continue;
-      return note;
-    }
-    return null;
-  }
-
-
   Widget _buildTopBar(
     PerformanceState state, {
     bool inlineStats = false,
   }) {
 
-    final connection = ref.watch(connectionProvider);
+    // Somente os campos exibidos: o diagnóstico periódico do dispositivo
+    // (sinal Wi-Fi, ruído) não reconstrói a tela de execução.
+    final (connected, simulated, deviceName) = ref.watch(
+      connectionProvider.select((c) => (c.isConnected, c.isSimulated, c.device?.name)),
+    );
     final ready = state.status == PerformanceStatus.ready;
     final score = state.structure!.score;
 
@@ -468,8 +524,10 @@ class _PerformancePageState
             const SizedBox(width: 12),
             StreakCounter(streak: state.streak),
             const SizedBox(width: 12),
-            Text(
-              '${state.bpm} BPM · ${_formatElapsed(state.elapsed)}',
+            _LiveElapsed(
+              live: _live,
+              fallback: state.elapsed,
+              prefix: '${state.bpm} BPM · ',
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
             ),
             const SizedBox(width: 12),
@@ -477,9 +535,9 @@ class _PerformancePageState
 
           // Status do dispositivo.
           _DevicePill(
-            connected: connection.isConnected,
-            simulated: connection.isSimulated,
-            name: connection.device?.name,
+            connected: connected,
+            simulated: simulated,
+            name: deviceName,
             onTap: ready ? _openConnection : null,
           ),
 
@@ -503,10 +561,6 @@ class _PerformancePageState
     final ready = state.status == PerformanceStatus.ready;
     final notifier = ref.read(performanceProvider.notifier);
     final phrase = structure.phrases[state.viewPhrase];
-    final cursor = state.cursorBeat;
-    final progress = cursor == null
-        ? 0.0
-        : ((cursor - phrase.startBeat) / phrase.durationBeats).clamp(0.0, 1.0);
 
     return Padding(
 
@@ -523,13 +577,24 @@ class _PerformancePageState
               onTap: state.viewPhrase > 0 ? () => notifier.showPhrase(state.viewPhrase - 1) : null,
             ),
 
+          // Avanço do trecho atual pelo cursor ao vivo (somente a barra é
+          // redesenhada a cada quadro).
           Expanded(
-            child: PhraseProgressBar(
-              phraseCount: structure.phrases.length,
-              currentPhrase: state.viewPhrase,
-              currentProgress: progress,
-              phraseScores: state.phraseScores,
-              onTap: ready ? notifier.showPhrase : null,
+            child: ValueListenableBuilder<double?>(
+              valueListenable: _live.cursorBeat,
+              builder: (context, liveCursor, _) {
+                final cursor = liveCursor ?? state.cursorBeat;
+                final progress = cursor == null
+                    ? 0.0
+                    : ((cursor - phrase.startBeat) / phrase.durationBeats).clamp(0.0, 1.0);
+                return PhraseProgressBar(
+                  phraseCount: structure.phrases.length,
+                  currentPhrase: state.viewPhrase,
+                  currentProgress: progress,
+                  phraseScores: state.phraseScores,
+                  onTap: ready ? notifier.showPhrase : null,
+                );
+              },
             ),
           ),
 
@@ -577,10 +642,9 @@ class _PerformancePageState
 
           HudStat(
             label: 'BPM',
-            value: TempoPill(
-              bpm: state.bpm,
-              beatInBar: state.beatInBar,
-              beatsPerBar: state.structure!.score.beatsPerBar,
+            value: _LiveTempoPill(
+              live: _live,
+              state: state,
               showBeats: settings.metronomeVisual && state.status == PerformanceStatus.running,
               slowedDown: active && state.bpm < state.initialBpm,
             ),
@@ -588,14 +652,10 @@ class _PerformancePageState
 
           HudStat(
             label: 'TEMPO',
-            value: Text(
-              _formatElapsed(state.elapsed),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                fontFeatures: [FontFeature.tabularFigures()],
-              ),
+            value: _LiveElapsed(
+              live: _live,
+              fallback: state.elapsed,
+              style: _elapsedStyle,
             ),
           ),
         ],
@@ -637,24 +697,19 @@ class _PerformancePageState
                     HudStat(label: 'SEQUÊNCIA', value: StreakCounter(streak: state.streak)),
                     HudStat(
                       label: 'BPM',
-                      value: TempoPill(
-                        bpm: state.bpm,
-                        beatInBar: state.beatInBar,
-                        beatsPerBar: state.structure!.score.beatsPerBar,
+                      value: _LiveTempoPill(
+                        live: _live,
+                        state: state,
                         showBeats: settings.metronomeVisual && state.status == PerformanceStatus.running,
                         slowedDown: active && state.bpm < state.initialBpm,
                       ),
                     ),
                     HudStat(
                       label: 'TEMPO',
-                      value: Text(
-                        _formatElapsed(state.elapsed),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          fontFeatures: [FontFeature.tabularFigures()],
-                        ),
+                      value: _LiveElapsed(
+                        live: _live,
+                        fallback: state.elapsed,
+                        style: _elapsedStyle,
                       ),
                     ),
                   ],
@@ -683,7 +738,7 @@ class _PerformancePageState
   }) {
 
     return NoteGuide(
-      expectedMidi: _nextExpected(state)?.midi,
+      expectedMidi: state.nextExpectedNote?.midi,
       playedMidi: state.lastPlayedMidi,
       playedFeedback: state.lastFeedback,
       compact: compact,
@@ -701,7 +756,7 @@ class _PerformancePageState
     final phrase = structure.phrases[state.viewPhrase];
     final running = state.status == PerformanceStatus.running ||
         state.status == PerformanceStatus.countdown;
-    final next = running ? _nextExpected(state) : null;
+    final next = running ? state.nextExpectedNote : null;
 
     return Padding(
 
@@ -729,11 +784,13 @@ class _PerformancePageState
 
                   measureIndexes: phrase.measureIndexes,
 
-                  noteColors: FeedbackColors.map(state.feedback),
+                  noteColors: _noteColors(state.feedback),
 
-                  activeNoteIds: next == null ? const {} : next.scoreNoteIds.toSet(),
+                  activeNoteIds: _activeNoteIds(next),
 
                   cursorBeat: state.cursorBeat,
+
+                  liveCursor: _live.cursorBeat,
 
                   zoom: settings.zoom * (wide ? 1.15 : 1.0),
 
@@ -751,11 +808,19 @@ class _PerformancePageState
             // Contagem de entrada (RFA05).
             if (state.status == PerformanceStatus.countdown)
               Positioned.fill(
-                child: CountdownWidget(
-                  beat: state.countInBeat,
-                  bar: state.countInBar,
-                  beatsPerBar: structure.score.beatsPerBar,
-                  totalBars: PerformanceNotifier.countInBars,
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _live.metronomeBeat,
+                  builder: (context, beat, _) {
+                    final beatsPerBar = structure.score.beatsPerBar;
+                    return CountdownWidget(
+                      beat: beat >= 0 ? beat % beatsPerBar + 1 : state.countInBeat,
+                      bar: beat >= 0
+                          ? (beat ~/ beatsPerBar + 1).clamp(1, PerformanceNotifier.countInBars)
+                          : state.countInBar,
+                      beatsPerBar: beatsPerBar,
+                      totalBars: PerformanceNotifier.countInBars,
+                    );
+                  },
                 ),
               ),
 
@@ -917,13 +982,6 @@ class _PerformancePageState
   }
 
 
-  String _formatElapsed(Duration elapsed) {
-    final minutes = elapsed.inMinutes.toString().padLeft(2, '0');
-    final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
-  }
-
-
   Widget _buildControls(
     PerformanceState state, {
     bool inPanel = false,
@@ -1024,7 +1082,7 @@ class _PerformancePageState
     bool inPanel = false,
   }) {
 
-    final connection = ref.watch(connectionProvider);
+    final connected = ref.watch(connectionProvider.select((c) => c.isConnected));
     final notifier = ref.read(performanceProvider.notifier);
 
     return Padding(
@@ -1083,7 +1141,7 @@ class _PerformancePageState
             height:
                 54,
 
-            child: connection.isConnected
+            child: connected
                 ? ElevatedButton.icon(
 
                     onPressed: () {
@@ -1304,6 +1362,86 @@ class _PerformancePageState
           bestStreak:
               state.bestStreak,
         ),
+      ),
+    );
+  }
+}
+
+
+const _elapsedStyle = TextStyle(
+  color: Colors.white,
+  fontSize: 20,
+  fontWeight: FontWeight.bold,
+  fontFeatures: [FontFeature.tabularFigures()],
+);
+
+
+String _formatElapsed(Duration elapsed) {
+  final minutes = elapsed.inMinutes.toString().padLeft(2, '0');
+  final seconds = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
+}
+
+
+// Tempo decorrido pelo relógio ao vivo (somente o texto é redesenhado, uma
+// vez por segundo).
+class _LiveElapsed extends StatelessWidget {
+
+  final PerformanceLiveClock live;
+  final Duration fallback;
+  final String prefix;
+  final TextStyle style;
+
+  const _LiveElapsed({
+    required this.live,
+    required this.fallback,
+    required this.style,
+    this.prefix = '',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+
+    return ValueListenableBuilder<int>(
+      valueListenable: live.elapsedSeconds,
+      builder: (context, seconds, _) => Text(
+        '$prefix${_formatElapsed(live.isRunning ? Duration(seconds: seconds) : fallback)}',
+        style: style,
+      ),
+    );
+  }
+}
+
+
+// Andamento com o metrônomo visual pelo relógio ao vivo: somente os pontos
+// do compasso são redesenhados a cada batida.
+class _LiveTempoPill extends StatelessWidget {
+
+  final PerformanceLiveClock live;
+  final PerformanceState state;
+  final bool showBeats;
+  final bool slowedDown;
+
+  const _LiveTempoPill({
+    required this.live,
+    required this.state,
+    required this.showBeats,
+    required this.slowedDown,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+
+    final beatsPerBar = state.structure!.score.beatsPerBar;
+
+    return ValueListenableBuilder<int>(
+      valueListenable: live.metronomeBeat,
+      builder: (context, beat, _) => TempoPill(
+        bpm: state.bpm,
+        beatInBar: beat >= 0 ? beat % beatsPerBar + 1 : state.beatInBar,
+        beatsPerBar: beatsPerBar,
+        showBeats: showBeats,
+        slowedDown: slowedDown,
       ),
     );
   }

@@ -115,6 +115,45 @@ void main() {
     }
   });
 
+  // Fluidez: o cursor ao vivo é redesenhado a cada quadro sem reconstruir
+  // a partitura (nem o widget, nem a camada das notas).
+  testWidgets('cursor ao vivo anda sem reconstruir a partitura', (tester) async {
+    final structure = _structure('alecrim.musicxml');
+    final phrase = structure.phrases.first;
+    final live = ValueNotifier<double?>(null);
+    addTearDown(live.dispose);
+    var builds = 0;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Center(
+          child: SizedBox(
+            width: 390,
+            height: 300,
+            child: ScoreDisplay(
+              score: structure.score,
+              measureIndexes: phrase.measureIndexes,
+              liveCursor: live,
+              overlayBuilder: (context, layout) {
+                builds++;
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    final initial = builds;
+
+    for (var beat = phrase.startBeat; beat < phrase.endBeat; beat += 0.25) {
+      live.value = beat;
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+
+    expect(tester.takeException(), isNull);
+    expect(builds, initial);
+  });
+
   testWidgets('tela de conexão lista e pareia o dispositivo', (tester) async {
     final notifier = _FixedConnection(
       const DeviceConnectionState(searched: true, devices: [_device]),

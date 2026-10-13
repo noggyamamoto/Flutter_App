@@ -57,18 +57,56 @@ class PerformanceTimeline {
     for (final phrase in phrases) {
       if (phrase.index >= phraseIndex) _bpm[phrase.index] = bpm;
     }
+    _starts = null;
+  }
+
+  // Batidas da contagem de entrada. A frase inicial nunca muda de andamento
+  // (as mudanças valem a partir de frases seguintes).
+  late final int countInBeats = (countInMs * metronomeBpmOf(startPhrase) / 60000).round();
+
+  // Batida do metrônomo no instante (0 = primeira batida da contagem),
+  // contada como o dispositivo conta: a contagem e, depois, as batidas de
+  // cada frase no andamento dela. O tempo no compasso é
+  // `metronomeBeatAt(t) % beatsPerBar + 1`, o mesmo do buzzer e do LED.
+  int metronomeBeatAt(double timeMs) {
+    if (timeMs <= 0) return 0;
+    if (timeMs < countInMs) {
+      return min(countInBeats - 1, (timeMs * metronomeBpmOf(startPhrase) / 60000).floor());
+    }
+    // Depois do fim o dispositivo continua batendo no andamento da última
+    // frase até a sessão parar.
+    final p = phraseAt(timeMs) ?? phrases.length - 1;
+    final beatMs = 60000 / metronomeBpmOf(p);
+    return countInBeats +
+        metronomeBeatsBetween(startPhrase, p) +
+        ((timeMs - phraseStartMs(p)) / beatMs).floor();
   }
 
   // Duração de uma semínima, derivada do BPM inteiro do metrônomo.
   double _beatMs(int phraseIndex) => 60000 / metronomeBpmOf(phraseIndex) * beatType / 4;
 
+  // Início de cada frase (a partir de startPhrase) no relógio da sessão,
+  // recalculado somente quando o andamento muda: estas consultas são feitas
+  // a cada quadro da tela.
+  List<double>? _starts;
+
+  List<double> get _phraseStarts {
+    final cached = _starts;
+    if (cached != null) return cached;
+    final starts = <double>[];
+    var t = countInMs;
+    for (var p = startPhrase; p <= phrases.length; p++) {
+      starts.add(t);
+      if (p < phrases.length) t += phrases[p].durationBeats * _beatMs(p);
+    }
+    return _starts = starts;
+  }
+
   // Início de uma frase no relógio da sessão.
   double phraseStartMs(int phraseIndex) {
-    var t = countInMs;
-    for (var p = startPhrase; p < phraseIndex && p < phrases.length; p++) {
-      t += phrases[p].durationBeats * _beatMs(p);
-    }
-    return t;
+    if (phraseIndex <= startPhrase) return countInMs;
+    final starts = _phraseStarts;
+    return starts[min(phraseIndex, phrases.length) - startPhrase];
   }
 
   double phraseEndMs(int phraseIndex) =>
@@ -77,8 +115,9 @@ class PerformanceTimeline {
   // Frase que contém o instante (ou null antes do início / após o fim).
   int? phraseAt(double timeMs) {
     if (timeMs < countInMs) return null;
+    final starts = _phraseStarts;
     for (var p = startPhrase; p < phrases.length; p++) {
-      if (timeMs < phraseEndMs(p)) return p;
+      if (timeMs < starts[p + 1 - startPhrase]) return p;
     }
     return null;
   }

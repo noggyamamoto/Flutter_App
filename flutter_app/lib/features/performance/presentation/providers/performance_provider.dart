@@ -38,6 +38,8 @@ import '../../domain/services/performance_timeline.dart';
 
 import '../../domain/usecases/get_midi_file.dart';
 
+import 'performance_live_clock.dart';
+
 
 // ---------------------------------------------------------
 // MIDI DATA SOURCE
@@ -126,8 +128,19 @@ class PerformanceNotifier
   // tempo de entrega dos eventos do dispositivo pela rede).
   static const phraseGraceMs = 500;
 
-  // Intervalo de atualização da tela.
+  // Intervalo da lógica da execução (notas perdidas, fim de frase, áudio).
+  // O cursor e o metrônomo visual são atualizados a cada quadro da tela
+  // pelo relógio ao vivo (`live`), sem reconstruir a tela.
   static const tickInterval = Duration(milliseconds: 30);
+
+  // Cursor, metrônomo visual, contagem e tempo decorrido (mudam a cada
+  // quadro; ficam fora do estado para não reconstruir a tela inteira).
+  final PerformanceLiveClock live = PerformanceLiveClock();
+
+  // Fim da próxima nota esperada: o cursor do estado (usado no destaque da
+  // próxima nota) só é atualizado quando passa deste ponto.
+  PerformanceState? _boundaryState;
+  double _boundary = double.infinity;
 
   // Relógio local alinhado ao relógio da sessão do dispositivo.
   final Stopwatch _clock = Stopwatch();
@@ -161,6 +174,12 @@ class PerformanceNotifier
   final Map<int, Future<Uint8List?>> _phraseAudio = {};
   int _audioPhrase = -1;
 
+  // Cliques da contagem de entrada, gerados e carregados no player assim que
+  // a música fica pronta (e ao mudar o BPM): o primeiro clique sai junto
+  // com o INICIAR, sem esperar a síntese.
+  Future<Uint8List>? _countInWav;
+  Object? _countInKey;
+
 
   @override
   PerformanceState build() {
@@ -171,6 +190,7 @@ class PerformanceNotifier
 
       _ticker?.cancel();
       _events?.cancel();
+      live.clear();
     });
 
     // Estado inicial da performance.
@@ -239,6 +259,8 @@ class PerformanceNotifier
         initialBpm: bpm,
       );
 
+      _warmCountIn();
+
     } catch (e) {
 
       // Caso ocorra algum erro,
@@ -277,6 +299,8 @@ class PerformanceNotifier
     state = state.copyWith(
       bpm: bpm.clamp(30, 240),
     );
+
+    _warmCountIn();
   }
 
 
@@ -308,6 +332,9 @@ class PerformanceNotifier
 
     _simulated = connection.isSimulated;
     _settings = ref.read(configurationProvider);
+
+    // Contagem de entrada pronta no player antes do comando de início.
+    final countInWav = await _countInAudio(preload: true);
 
     // Nova execução completa ou repetição de um trecho.
     final feedback = Map<int, NoteFeedback>.of(state.feedback);
@@ -435,6 +462,12 @@ class PerformanceNotifier
       return;
     }
 
+    // Contagem de entrada sonora (RU07) a partir do ponto da contagem em
+    // que a sessão está (alinhada às batidas do dispositivo).
+    if (countInWav != null && state.status == PerformanceStatus.countdown) {
+      _audio?.play(countInWav, position: Duration(milliseconds: max(0, _nowMs)));
+    }
+
     // Modo demonstração: o "aluno virtual" toca a partitura.
     if (_simulated) {
       repository.scheduleSimulation(_simulationNotes(fromPhrase));
@@ -462,6 +495,40 @@ class PerformanceNotifier
 
   int get _nowMs =>
       _clock.elapsedMilliseconds - (_offsetMs ?? 0);
+
+
+  // Atualiza o relógio ao vivo. Chamado a cada quadro pela tela de execução
+  // (movimento suave do cursor) e a cada ciclo da lógica.
+  void sampleLiveClock() {
+
+    final timeline = _timeline;
+    final active = state.status == PerformanceStatus.countdown ||
+        state.status == PerformanceStatus.running;
+
+    if (timeline == null || !active || !_clock.isRunning) {
+      live.clear();
+      return;
+    }
+
+    final now = _nowMs.toDouble();
+
+    live.update(
+      cursor: state.status == PerformanceStatus.running ? timeline.msToBeat(now) : null,
+      beat: timeline.metronomeBeatAt(now),
+      elapsed: max(0, (now - timeline.countInMs) ~/ 1000),
+    );
+  }
+
+
+  double _cursorBoundary() {
+
+    if (!identical(_boundaryState, state)) {
+      _boundaryState = state;
+      _boundary = state.nextExpectedNote?.endBeat ?? double.infinity;
+    }
+
+    return _boundary;
+  }
 
 
   // Horário esperado de cada nota a partir de uma frase.
@@ -561,29 +628,18 @@ class PerformanceNotifier
     final now = _nowMs;
 
     // ---------------- Contagem de entrada ----------------
+    // Tempo e compasso da contagem vêm do relógio ao vivo.
     if (state.status == PerformanceStatus.countdown) {
 
       if (now < timeline.countInMs) {
-
-        final beatMs = 60000 / _metronomeBpm(state.bpm);
-        final beatsPerBar = structure.score.beatsPerBar;
-        final beat = max(0, (now / beatMs).floor());
-
-        final countInBeat = beat % beatsPerBar + 1;
-        final countInBar = beat ~/ beatsPerBar + 1;
-
-        if (countInBeat != state.countInBeat || countInBar != state.countInBar) {
-          state = state.copyWith(
-            countInBeat: countInBeat,
-            countInBar: countInBar,
-          );
-        }
-
+        sampleLiveClock();
         return;
       }
 
       state = state.copyWith(status: PerformanceStatus.running);
     }
+
+    sampleLiveClock();
 
     if (state.status != PerformanceStatus.running) return;
 
@@ -640,16 +696,30 @@ class PerformanceNotifier
       );
     }
 
-    state = state.copyWith(
-      judgement: judgement,
-      streak: missed.isNotEmpty ? 0 : state.streak,
-      cursorBeat: timeline.msToBeat(now.toDouble()),
-      viewPhrase: phrase ?? state.viewPhrase,
-      feedback: feedback,
-      bpm: phrase != null ? timeline.bpmOf(phrase) : state.bpm,
-      elapsed: Duration(milliseconds: max(0, now - timeline.countInMs.round())),
-      precision: missed.isNotEmpty ? _precision() : state.precision,
-    );
+    // O estado (que reconstrói a tela) só muda quando algo visível muda:
+    // nota perdida, troca de trecho ou de andamento, ou o cursor passou do
+    // fim da próxima nota (destaque da nota seguinte).
+    final cursor = timeline.msToBeat(now.toDouble());
+    final viewPhrase = phrase ?? state.viewPhrase;
+    final bpm = phrase != null ? timeline.bpmOf(phrase) : state.bpm;
+    final cursorMoved = cursor != null &&
+        (state.cursorBeat == null || cursor >= _cursorBoundary());
+
+    if (missed.isNotEmpty ||
+        cursorMoved ||
+        viewPhrase != state.viewPhrase ||
+        bpm != state.bpm) {
+
+      state = state.copyWith(
+        judgement: judgement,
+        streak: missed.isNotEmpty ? 0 : state.streak,
+        cursorBeat: cursor,
+        viewPhrase: viewPhrase,
+        feedback: feedback,
+        bpm: bpm,
+        precision: missed.isNotEmpty ? _precision() : state.precision,
+      );
+    }
 
     // Avaliação ao término de cada frase (RFA07).
     while (_nextPhrase < structure.phrases.length &&
@@ -813,8 +883,14 @@ class PerformanceNotifier
     // batida do início da frase.
     _sendTempo();
 
-    // Áudio das frases seguintes precisa ser gerado no novo andamento.
+    // Áudio das frases seguintes precisa ser gerado no novo andamento (e o
+    // da próxima, já carregado no player, é substituído).
     _phraseAudio.removeWhere((p, _) => p >= phraseIndex);
+
+    if (_needsAudio && _audio != null && phraseIndex == _audioPhrase + 1) {
+      _phraseAudio[phraseIndex] = _renderPhrase(phraseIndex);
+      _preloadPhrase(phraseIndex, playing: _audioPhrase);
+    }
 
     if (_simulated) {
       ref.read(connectionRepositoryProvider).scheduleSimulation(
@@ -840,17 +916,14 @@ class PerformanceNotifier
       case BeatEvent():
 
         // Alinha o relógio local ao do dispositivo. O menor desvio
-        // observado corresponde à menor latência de rede.
+        // observado corresponde à menor latência de rede. O metrônomo
+        // visual é calculado pelo relógio (sem reconstruir a tela a cada
+        // batida nem depender do atraso de cada pacote).
         final offset = _clock.elapsedMilliseconds - event.timeMs;
 
         if (_offsetMs == null || offset < _offsetMs!) {
           _offsetMs = offset;
         }
-
-        state = state.copyWith(
-          beatInBar: event.beatInBar + 1,
-          beatCount: state.beatCount + 1,
-        );
 
       case NotePlayedEvent():
 
@@ -1019,44 +1092,92 @@ class PerformanceNotifier
   // Com o dispositivo o microfone ouve o alto-falante: clique sem altura.
   ClickSound get _clickSound => _simulated ? ClickSound.tone : ClickSound.wood;
 
+  // Contagem de entrada: sempre no modo demonstração (sem o buzzer do
+  // dispositivo); com o dispositivo, se o metrônomo sonoro estiver ligado.
+  Future<Uint8List?> _countInAudio({required bool preload}) async {
+
+    final structure = state.structure;
+    final simulated = ref.read(connectionProvider).isSimulated;
+    final settings = ref.read(configurationProvider);
+
+    if (structure == null || (!simulated && !settings.metronomeSound)) return null;
+
+    final audio = _audio ?? ref.read<PerformanceAudio>(performanceAudioProvider);
+    _audio = audio;
+    final beatsPerBar = structure.score.beatsPerBar;
+    final metronomeBpm = _metronomeBpm(state.bpm);
+    final sound = simulated ? ClickSound.tone : ClickSound.wood;
+    final key = (metronomeBpm, beatsPerBar, sound);
+
+    if (key != _countInKey || _countInWav == null) {
+
+      final beats = countInBars * beatsPerBar;
+      final beatMs = 60000 / metronomeBpm;
+
+      _countInKey = key;
+      _countInWav = audio.render(
+        SynthRequest(
+          notes: const [],
+          clicks: [
+            for (var i = 0; i < beats; i++)
+              SynthClick(
+                timeMs: (i * beatMs).round(),
+                accent: i % beatsPerBar == 0,
+              ),
+          ],
+          totalMs: (beats * beatMs).round(),
+          clickSound: sound,
+        ),
+      );
+    }
+
+    final request = _countInWav!;
+
+    try {
+
+      final wav = await request;
+
+      // Outra contagem foi pedida enquanto esta era gerada (BPM mudou).
+      if (!identical(request, _countInWav)) return null;
+
+      if (preload) await audio.preload(wav);
+
+      return wav;
+
+    } catch (_) {
+
+      return null;
+    }
+  }
+
+
+  // Gera e carrega a contagem de entrada antes do INICIAR.
+  void _warmCountIn() {
+
+    if (state.status != PerformanceStatus.ready) return;
+
+    _countInAudio(preload: true);
+  }
+
+
   void _prepareAudio(int fromPhrase) {
 
-    if (!_needsAudio && !_simulated) return;
+    if (!_needsAudio) return;
 
     _audio ??= ref.read(performanceAudioProvider);
 
-    // Contagem de entrada (RU07): sempre no modo demonstração (sem o buzzer
-    // do dispositivo); com o dispositivo, se o metrônomo sonoro estiver
-    // ligado. O áudio começa no ponto da contagem em que a sessão está
-    // (alinhado às batidas do dispositivo).
-    if (_simulated || _settings.metronomeSound) {
+    // Primeiro trecho gerado durante a contagem e carregado no outro player.
+    final first = _renderPhrase(fromPhrase);
 
-      final beats = countInBars * state.structure!.score.beatsPerBar;
-      final beatMs = 60000 / _metronomeBpm(state.bpm);
+    _phraseAudio[fromPhrase] = first;
 
-      final request = SynthRequest(
-        notes: const [],
-        clicks: [
-          for (var i = 0; i < beats; i++)
-            SynthClick(
-              timeMs: (i * beatMs).round(),
-              accent: i % state.structure!.score.beatsPerBar == 0,
-            ),
-        ],
-        totalMs: (beats * beatMs).round(),
-        clickSound: _clickSound,
-      );
-
-      _audio!.render(request).then((wav) {
-        if (state.status == PerformanceStatus.countdown) {
-          _audio?.play(wav, position: Duration(milliseconds: max(0, _nowMs)));
-        }
-      });
-    }
-
-    if (_needsAudio) {
-      _phraseAudio[fromPhrase] = _renderPhrase(fromPhrase);
-    }
+    first.then((wav) {
+      if (wav != null &&
+          state.status == PerformanceStatus.countdown &&
+          _audioPhrase < fromPhrase) {
+        _audio?.preload(wav);
+      }
+    });
   }
 
 
@@ -1152,6 +1273,26 @@ class PerformanceNotifier
       final late = _nowMs - (_timeline?.phraseStartMs(phraseIndex) ?? _nowMs);
       await _audio?.play(wav, position: Duration(milliseconds: max(0, late.round())));
     }
+
+    // Próximo trecho carregado no outro player enquanto este toca.
+    await _preloadPhrase(next, playing: phraseIndex);
+  }
+
+
+  Future<void> _preloadPhrase(int phraseIndex, {required int playing}) async {
+
+    final future = _phraseAudio[phraseIndex];
+
+    if (future == null) return;
+
+    final wav = await future;
+
+    if (wav != null &&
+        state.status == PerformanceStatus.running &&
+        _audioPhrase == playing &&
+        identical(_phraseAudio[phraseIndex], future)) {
+      await _audio?.preload(wav);
+    }
   }
 
 
@@ -1163,6 +1304,7 @@ class PerformanceNotifier
 
     _ticker?.cancel();
     _ticker = null;
+    live.clear();
     _events?.cancel();
     _events = null;
     _audio?.stop();
@@ -1177,6 +1319,7 @@ class PerformanceNotifier
 
     _ticker?.cancel();
     _ticker = null;
+    live.clear();
     await _events?.cancel();
     _events = null;
     await _audio?.stop();

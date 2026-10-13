@@ -46,4 +46,39 @@ void main() {
     expect(timeline.metronomeBeatsBetween(0, 1), 8);           // 16 semínimas = 8 mínimas
     expect(timeline.metronomeBeatsBetween(0, 0), 0);
   });
+
+  // Metrônomo visual calculado pelo relógio da sessão: mesma contagem do
+  // dispositivo (contagem de entrada e, depois, as batidas de cada frase no
+  // andamento dela), inclusive após uma mudança de andamento.
+  test('batida do metrônomo no instante, como o dispositivo conta', () {
+    const bpm = 120;                                           // 4/4: 500 ms por batida
+    final timeline = PerformanceTimeline(
+      phrases: _phrases,
+      startPhrase: 0,
+      countInMs: 8 * 500,                                      // 2 compassos de 4 tempos
+      initialBpm: bpm,
+    );
+    timeline.setBpmFrom(1, 100);                               // frase 2: 600 ms por batida
+
+    expect(timeline.countInBeats, 8);
+    expect(timeline.metronomeBeatAt(0), 0);
+    expect(timeline.metronomeBeatAt(499), 0);
+    expect(timeline.metronomeBeatAt(500), 1);
+    expect(timeline.metronomeBeatAt(3999), 7);                 // última da contagem
+    expect(timeline.metronomeBeatAt(4000), 8);                 // 1º tempo da música
+    expect(timeline.metronomeBeatAt(4000 + 16 * 500 - 1), 23);
+    final phrase2 = timeline.phraseStartMs(1);
+    expect(phrase2, 4000 + 16 * 500);
+    expect(timeline.metronomeBeatAt(phrase2), 24);
+    expect(timeline.metronomeBeatAt(phrase2 + 599), 24);
+    expect(timeline.metronomeBeatAt(phrase2 + 600), 25);
+    // Depois do fim o dispositivo continua batendo até a sessão parar.
+    expect(timeline.metronomeBeatAt(timeline.endMs), 8 + 16 + 16);
+    expect(timeline.metronomeBeatAt(timeline.endMs + 600), 8 + 16 + 17);
+    // Início das frases recalculado com a mudança de andamento.
+    expect(timeline.endMs, phrase2 + 16 * 600);
+    expect(timeline.phraseAt(phrase2 - 1), 0);
+    expect(timeline.phraseAt(phrase2), 1);
+    expect(timeline.phraseAt(timeline.endMs), isNull);
+  });
 }

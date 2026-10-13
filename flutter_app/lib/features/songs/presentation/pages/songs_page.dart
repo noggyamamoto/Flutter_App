@@ -164,7 +164,11 @@ class _Header extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final connection = ref.watch(connectionProvider);
+    // Somente o que é exibido (o diagnóstico periódico do dispositivo não
+    // reconstrói o cabeçalho).
+    final (connected, simulated, deviceName) = ref.watch(
+      connectionProvider.select((c) => (c.isConnected, c.isSimulated, c.device?.name)),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,17 +267,15 @@ class _Header extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  connection.isConnected
-                      ? (connection.isSimulated ? Icons.smart_toy_outlined : Icons.sensors)
+                  connected
+                      ? (simulated ? Icons.smart_toy_outlined : Icons.sensors)
                       : Icons.sensors_off,
-                  color: connection.isConnected ? Colors.greenAccent : Colors.redAccent,
+                  color: connected ? Colors.greenAccent : Colors.redAccent,
                   size: 18,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  connection.isConnected
-                      ? connection.device!.name
-                      : 'Nenhum dispositivo conectado',
+                  connected ? deviceName ?? '' : 'Nenhum dispositivo conectado',
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                 ),
                 const SizedBox(width: 4),

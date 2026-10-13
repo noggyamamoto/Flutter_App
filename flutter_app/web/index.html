@@ -29,10 +29,38 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>flutter_app</title>
+  <title>Partitura IoT</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Conexões antecipadas com o Firebase (SDK e banco de dados). -->
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+
+  <!-- Abertura exibida enquanto o app é baixado e iniciado (antes, página em
+       branco). Removida no primeiro quadro desenhado pelo Flutter. -->
+  <style>
+    html, body { margin: 0; background: #0F0E17; }
+    #splash {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: #fff; font: bold 22px system-ui, -apple-system, Roboto, sans-serif;
+    }
+    #splash .spinner {
+      width: 36px; height: 36px; margin-top: 24px; border-radius: 50%;
+      border: 4px solid rgba(124, 92, 250, 0.25); border-top-color: #7C5CFA;
+      animation: splash-spin 0.9s linear infinite;
+    }
+    @keyframes splash-spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
 <body>
+  <div id="splash"><div>Partitura IoT</div><div class="spinner"></div></div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var splash = document.getElementById('splash');
+      if (splash) splash.remove();
+    });
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
