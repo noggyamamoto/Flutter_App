@@ -4,7 +4,13 @@ Aplicativo Flutter do TCC **Sistema de Processamento de Áudio com Feedback em T
 
 O aluno toca a partitura exibida no app; o [dispositivo embarcado](https://github.com/noggyamamoto/firmware_I2S) (ESP32 + microfone INMP441) identifica as notas tocadas e as envia ao app, que compara cada nota com a partitura **MusicXML** e mostra o resultado na hora: verde para acerto, amarelo para aproximado e vermelho para erro, como nos aplicativos de prática musical (Simply Piano, Yousician, Meludia).
 
-### Novidades desta versão: navegação fluida, sem travamentos
+### Novidades desta versão: sem atraso no início, no meio da execução e no feedback
+
+| Feature (commit) | O que mudou |
+|---|---|
+| **Execução sem atraso** (`execucao-sem-atraso`) | **Áudio contínuo:** contagem de entrada, metrônomo e música guia num único arquivo (`SessionAudioPlan`); antes, a música era outro arquivo, que começava atrasado pelo ciclo da lógica (até 30 ms), pela partida do player e pelo relógio da sessão (o dispositivo conta a partir do recebimento do comando). Os cliques caem nos instantes e tempos fortes das batidas do dispositivo; um novo arquivo só entra quando o andamento muda. O áudio é conferido com o relógio da sessão e realinhado se passar de 30 ms. **Lógica no ritmo da tela:** troca de trecho, destaque da próxima nota e notas perdidas vistos no quadro em que acontecem. **"Perdeu" no tempo da rede:** a espera usa o maior atraso medido nas últimas notas + 80 ms (150–350 ms) em vez de 350 ms fixos. **Feedback imediato:** metrônomo visual, número da contagem e nota tocada aparecem no quadro da batida/nota, sem animação de entrada. Com o firmware 1.3.3, a nota sai do dispositivo ~35 ms mais cedo (média) |
+
+### Navegação fluida, sem travamentos
 
 | Feature (commit) | O que mudou |
 |---|---|
@@ -612,7 +618,9 @@ sequenceDiagram
 |---|---|
 | Cursor, metrônomo visual, contagem, tempo | `PerformanceLiveClock` (`ValueNotifier`s) atualizado a cada quadro por um `Ticker` da tela; o cursor é redesenhado pelo `ScoreCursorPainter` (`repaint`), sem reconstruir widgets |
 | Estado da execução | Atualizado só quando algo visível muda; cores das notas e destaque memorizados (a camada das notas não é repintada à toa) |
-| Áudio | Síntese por osciladores recursivos (isolate / etapas na web); dois players alternados com pré-carga do próximo trecho; contagem de entrada pronta antes do INICIAR; blob URL na web |
+| Áudio | Síntese por osciladores recursivos (isolate / etapas na web); um único arquivo por execução (contagem + música), gerado e carregado antes do INICIAR; conferência da posição a cada 1,5 s e na primeira batida (realinha acima de 30 ms); troca de arquivo só na mudança de andamento, pré-carregada no outro player; blob URL na web |
+| Lógica da execução | Rodada a cada quadro pela tela (`onFrame`) e, sem quadros, a cada 30 ms |
+| Notas perdidas | Espera = janela + maior atraso medido nas últimas 12 notas + 80 ms (150 a 350 ms); nota que chega depois ainda substitui a "perdida" |
 | Abertura | Tela de abertura imediata (HTML na web) enquanto o Firebase inicia; sessão restaurada sem piscar o login; repertório pré-carregado |
 | Partituras | Interpretação em isolate e cache por arquivo |
 
@@ -814,7 +822,7 @@ flutter test
 | Parser MusicXML | `test/score/musicxml_parser_test.dart` | Atributos, vozes, acordes, ligaduras, acidentes calculados, claves, `.mxl`, todo o repertório |
 | Renderização | `test/score/score_render_test.dart` | Todo o repertório em 5 larguras: nenhum elemento fora da área, todas as notas posicionadas, desenho sem exceções |
 | Avaliação | `test/score/performance_evaluator_test.dart` | Linha do tempo e avaliação nota a nota/por frase; nota certa que chega atrasada pela rede não vira erro |
-| Fluxo de execução | `test/performance/performance_flow_test.dart` | Música inteira com o dispositivo simulado (inclusive com as notas chegando 300 ms depois do ataque), reprovação de trecho, redução automática de BPM (sem avisos sobre a partitura), sequência, notas por trecho e log no console; fluidez: menos de 12 atualizações de estado por segundo e metrônomo visual igual às batidas do dispositivo; metrônomo sonoro com contagem e trechos já carregados no player antes de tocar (inclusive após mudança de BPM) |
+| Fluxo de execução | `test/performance/performance_flow_test.dart` | Música inteira com o dispositivo simulado (inclusive com as notas chegando 300 ms depois do ataque), reprovação de trecho, redução automática de BPM (sem avisos sobre a partitura), sequência, notas por trecho e log no console; fluidez: menos de 12 atualizações de estado por segundo e metrônomo visual igual às batidas do dispositivo; metrônomo sonoro num único áudio com cliques nos instantes e tempos fortes das batidas do dispositivo (também após mudança de BPM); player que começa 120 ms atrasado é realinhado; início da música visto no quadro em que acontece; "Perdeu" mais cedo com rede rápida e só em notas não tocadas, e espera máxima com rede lenta |
 | Síntese de áudio | `test/performance/audio_synth_test.dart` | Síntese otimizada igual à fórmula original (A0 a C8), trecho de 8 s em menos de 40 ms, síntese em etapas igual à direta |
 | Áudio no navegador | `test/performance/web_audio_source_test.dart` | WAV entregue ao player por blob URL (`flutter test --platform chrome`) |
 | Abertura | `test/startup_test.dart` | Tela de abertura enquanto o Firebase inicia; falha com "Tentar novamente" |
@@ -824,7 +832,7 @@ flutter test
 | Descoberta | `test/connection/device_discovery_test.dart` | Varredura no navegador, prioridade do último endereço, histórico |
 | Sincronismo | `test/performance/performance_timeline_sync_test.dart`, `test/connection/session_sync_test.dart` | BPM inteiro do metrônomo na linha do tempo (4/4, 6/8, 2/2), batida do metrônomo no instante (contagem, mudança de andamento, após o fim), `session_id` mantido no reenvio, batidas antigas descartadas, `at_beat` do `SET_TEMPO` |
 | Telas | `test/performance/performance_screens_test.dart` | Tela de execução em celular, celular deitado, tablet e web: pronta, em execução e com sugestão de BPM (nada sobre a partitura) |
-| Widgets | `test/widget_test.dart` | Partitura em todas as frases/larguras, cursor ao vivo sem reconstruir a partitura, conexão, HUD e tela de incentivo |
+| Widgets | `test/widget_test.dart` | Partitura em todas as frases/larguras, cursor ao vivo sem reconstruir a partitura, metrônomo visual aceso no quadro da batida, conexão, HUD e tela de incentivo |
 | Integração UDP | `test/connection/udp_device_test.dart` | Protocolo contra o dispositivo falso do firmware |
 | Integração WebSocket | `test/connection/websocket_device_test.dart` | App web (Chrome) contra o dispositivo falso via WebSocket |
 

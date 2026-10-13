@@ -57,10 +57,14 @@ class PerformanceEvaluator {
   // Total de notas tocadas.
   int _played = 0;
 
+  // Atraso de entrega em uso: começa no valor da tolerância (o maior) e é
+  // ajustado pela execução conforme o atraso medido das notas.
+  int deliveryLatencyMs;
+
   PerformanceEvaluator(
     this.notes, {
     this.tolerance = const EvaluationTolerance(),
-  });
+  }) : deliveryLatencyMs = tolerance.deliveryLatencyMs;
 
   // ------------------------------------------------------------------------
   // Linha do tempo
@@ -198,7 +202,7 @@ class PerformanceEvaluator {
     for (final note in notes) {
       final onset = _onsetMs[note.index];
       if (onset == null || _results.containsKey(note.index)) continue;
-      if (nowMs > onset + _window(note.index) + tolerance.deliveryLatencyMs) {
+      if (nowMs > onset + _window(note.index) + deliveryLatencyMs) {
         final comparison = NoteComparison(
           expected: note,
           playedMidi: null,

@@ -7,6 +7,7 @@ import 'package:flutter_app/features/connection/presentation/providers/connectio
 import 'package:flutter_app/features/performance/domain/entities/performance_state.dart';
 import 'package:flutter_app/features/performance/presentation/pages/performance_page.dart';
 import 'package:flutter_app/features/performance/presentation/providers/performance_provider.dart';
+import 'package:flutter_app/features/performance/presentation/widgets/performance_hud.dart';
 import 'package:flutter_app/features/performance/presentation/widgets/score_display.dart';
 import 'package:flutter_app/features/score/domain/entities/note_comparison.dart';
 import 'package:flutter_app/features/score/domain/entities/score_result.dart';
@@ -152,6 +153,27 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(builds, initial);
+  });
+
+  // Metrônomo visual sem atraso: o ponto do tempo acende (tamanho e cor
+  // finais) no primeiro quadro da batida, sem animação de entrada.
+  testWidgets('metrônomo visual acende o tempo no quadro da batida', (tester) async {
+    Future<void> show(int beat) => tester.pumpWidget(
+          MaterialApp(
+            home: Center(
+              child: TempoPill(bpm: 100, beatInBar: beat, beatsPerBar: 4),
+            ),
+          ),
+        );
+    await show(1);
+    await show(3);                                   // um único quadro depois da troca
+
+    final dots = tester
+        .widgetList<Container>(find.byType(Container))
+        .where((c) => c.constraints?.maxWidth == 9 || c.constraints?.maxWidth == 6)
+        .toList();
+    final sizes = [for (final d in dots) d.constraints!.maxWidth];
+    expect(sizes, [6, 6, 9, 6]);
   });
 
   testWidgets('tela de conexão lista e pareia o dispositivo', (tester) async {

@@ -115,6 +115,28 @@ class PerformanceAudio {
     }
   }
 
+  // Posição do áudio que está tocando (null se nenhum player tocou ainda).
+  Future<Duration?> position() async {
+    final player = _players[_active];
+    if (_disposed || player == null) return null;
+    try {
+      return await player.getCurrentPosition();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Leva o áudio que está tocando para `position` (correção de alinhamento).
+  Future<void> seek(Duration position) async {
+    final player = _players[_active];
+    if (_disposed || player == null) return;
+    try {
+      await player.seek(position);
+    } catch (e) {
+      debugPrint('Falha ao reposicionar áudio: $e');
+    }
+  }
+
   // Para o que está tocando. O áudio pré-carregado continua pronto (o
   // player livre não estava tocando).
   Future<void> stop() async {

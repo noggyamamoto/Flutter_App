@@ -88,7 +88,7 @@ class _PerformancePageState
     super.initState();
 
     _frameTicker = createTicker(
-      (_) => ref.read(performanceProvider.notifier).sampleLiveClock(),
+      (_) => ref.read(performanceProvider.notifier).onFrame(),
     );
 
     // Carrega a partitura depois que

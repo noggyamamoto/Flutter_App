@@ -100,15 +100,12 @@ class _NoteLabel extends StatelessWidget {
         children: [
           Text(caption, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
           const SizedBox(height: 2),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 150),
-            child: Text(
-              value,
-              key: ValueKey(value),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
-            ),
+          // Troca imediata: a nota tocada aparece no quadro em que chega.
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
           ),
         ],
       ),
