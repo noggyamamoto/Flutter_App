@@ -39,7 +39,7 @@ class _SilentAudio extends PerformanceAudio {
   Future<Uint8List> render(SynthRequest request) async => Uint8List(0);
 
   @override
-  Future<void> play(Uint8List wav) async => played++;
+  Future<void> play(Uint8List wav, {Duration position = Duration.zero}) async => played++;
 
   @override
   Future<void> stop() async {}

@@ -16,6 +16,18 @@ class SynthNote {
   });
 }
 
+// Timbre do clique do metrônomo.
+enum ClickSound {
+  // Bipe agudo (Lá 5 / Lá 6), igual ao buzzer do dispositivo. Usado no modo
+  // demonstração, em que nenhum microfone ouve o app.
+  tone,
+
+  // Estalo curto sem altura definida (ruído), como um bloco de madeira. Com
+  // o dispositivo conectado o microfone ouve o alto-falante: um clique sem
+  // altura não é confundido com uma nota tocada.
+  wood,
+}
+
 // Clique de metrônomo.
 class SynthClick {
   final int timeMs;
@@ -29,11 +41,13 @@ class SynthRequest {
   final List<SynthNote> notes;
   final List<SynthClick> clicks;
   final int totalMs;
+  final ClickSound clickSound;
 
   const SynthRequest({
     required this.notes,
     required this.clicks,
     required this.totalMs,
+    this.clickSound = ClickSound.tone,
   });
 }
 
@@ -51,7 +65,11 @@ class AudioSynth {
       _addNote(mix, note);
     }
     for (final click in request.clicks) {
-      _addClick(mix, click);
+      if (request.clickSound == ClickSound.wood) {
+        _addWoodClick(mix, click);
+      } else {
+        _addClick(mix, click);
+      }
     }
     return _toWav(mix);
   }
@@ -92,6 +110,26 @@ class AudioSynth {
       if (index < 0 || index >= mix.length) continue;
       final t = i / sampleRate;
       mix[index] += 0.35 * exp(-t / 0.008) * sin(2 * pi * f * t);
+    }
+  }
+
+  // Estalo de ruído (12 ms) com decaimento rápido: sem periodicidade, o
+  // detector de altura do dispositivo não o reconhece como nota.
+  static void _addWoodClick(Float32List mix, SynthClick click) {
+    final start = (click.timeMs * sampleRate / 1000).round();
+    final length = (0.012 * sampleRate).round();
+    final amp = click.accent ? 0.7 : 0.45;
+    final random = Random(click.timeMs);          // Determinístico
+    var previous = 0.0;
+    for (var i = 0; i < length; i++) {
+      final index = start + i;
+      if (index < 0 || index >= mix.length) continue;
+      final noise = random.nextDouble() * 2 - 1;
+      // Diferença de primeira ordem: realça os agudos (estalo seco)
+      final bright = noise - previous;
+      previous = noise;
+      final t = i / sampleRate;
+      mix[index] += amp * exp(-t / 0.0025) * bright * 0.5;
     }
   }
 

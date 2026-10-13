@@ -1012,8 +1012,12 @@ class PerformanceNotifier
   // ÁUDIO (música guia e cliques do modo demonstração)
   // -------------------------------------------------------
 
-  bool get _needsAudio =>
-      _settings.guideAudio || (_simulated && _settings.metronomeSound);
+  // Metrônomo sonoro do app: no modo demonstração (sem buzzer) e também com
+  // o dispositivo conectado, quando o metrônomo sonoro está ligado.
+  bool get _needsAudio => _settings.guideAudio || _settings.metronomeSound;
+
+  // Com o dispositivo o microfone ouve o alto-falante: clique sem altura.
+  ClickSound get _clickSound => _simulated ? ClickSound.tone : ClickSound.wood;
 
   void _prepareAudio(int fromPhrase) {
 
@@ -1021,8 +1025,11 @@ class PerformanceNotifier
 
     _audio ??= ref.read(performanceAudioProvider);
 
-    // Sem o buzzer do dispositivo, o app toca a contagem (RU07).
-    if (_simulated) {
+    // Contagem de entrada (RU07): sempre no modo demonstração (sem o buzzer
+    // do dispositivo); com o dispositivo, se o metrônomo sonoro estiver
+    // ligado. O áudio começa no ponto da contagem em que a sessão está
+    // (alinhado às batidas do dispositivo).
+    if (_simulated || _settings.metronomeSound) {
 
       final beats = countInBars * state.structure!.score.beatsPerBar;
       final beatMs = 60000 / _metronomeBpm(state.bpm);
@@ -1037,11 +1044,12 @@ class PerformanceNotifier
             ),
         ],
         totalMs: (beats * beatMs).round(),
+        clickSound: _clickSound,
       );
 
       _audio!.render(request).then((wav) {
         if (state.status == PerformanceStatus.countdown) {
-          _audio?.play(wav);
+          _audio?.play(wav, position: Duration(milliseconds: max(0, _nowMs)));
         }
       });
     }
@@ -1086,7 +1094,7 @@ class PerformanceNotifier
 
     final clicks = <SynthClick>[];
 
-    if (_simulated && _settings.metronomeSound) {
+    if (_settings.metronomeSound) {
 
       final beatMs = 60000 / _metronomeBpm(timeline.bpmOf(phraseIndex));
       final beatsPerBar = structure.score.beatsPerBar;
@@ -1113,6 +1121,7 @@ class PerformanceNotifier
         notes: notes,
         clicks: clicks,
         totalMs: (timeline.phraseEndMs(phraseIndex) - start).round(),
+        clickSound: _clickSound,
       ),
     );
   }
@@ -1138,7 +1147,10 @@ class PerformanceNotifier
     if (wav != null &&
         state.status == PerformanceStatus.running &&
         _audioPhrase == phraseIndex) {
-      await _audio?.play(wav);
+      // Começa no ponto do trecho em que a execução está (o áudio pode ficar
+      // pronto alguns milissegundos depois do início do trecho).
+      final late = _nowMs - (_timeline?.phraseStartMs(phraseIndex) ?? _nowMs);
+      await _audio?.play(wav, position: Duration(milliseconds: max(0, late.round())));
     }
   }
 
