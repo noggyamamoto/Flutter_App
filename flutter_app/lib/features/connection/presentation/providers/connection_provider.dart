@@ -191,9 +191,10 @@ class ConnectionNotifier extends Notifier<DeviceConnectionState> {
         searched: true,
         message: devices.isEmpty
             ? (kIsWeb
-                ? 'Nenhum dispositivo encontrado. No navegador a busca '
-                    'automática não está disponível: informe o IP do '
-                    'dispositivo (exibido no menu serial) no campo abaixo.'
+                ? 'Nenhum dispositivo encontrado. Verifique se ele está ligado '
+                    'e na mesma rede Wi-Fi do computador. Se a rede usar uma '
+                    'faixa de IP pouco comum, informe o IP exibido no monitor '
+                    'serial (ou partitura.local) no campo abaixo.'
                 : 'Nenhum dispositivo encontrado. Verifique se ele está ligado '
                     'e conectado à mesma rede Wi-Fi.')
             : null,

@@ -22,8 +22,9 @@ class UdpDatagram {
 //   (dart:io), com descoberta por broadcast.
 // - Web: o navegador não tem UDP; cada "datagrama" é uma mensagem binária
 //   em um WebSocket com o dispositivo (ws://IP/ws – RNFA02). Não há
-//   broadcast, então a busca é feita pelo IP informado (ou pelo IP padrão
-//   da rede própria do dispositivo, 192.168.4.1).
+//   broadcast: a busca consulta endereço a endereço (probe), começando pelo
+//   nome partitura.local (mDNS), pelos IPs já usados e pela rede própria do
+//   dispositivo (192.168.4.1).
 abstract class UdpTransport {
   factory UdpTransport() = platform.PlatformUdpTransport;
 
@@ -42,6 +43,21 @@ abstract class UdpTransport {
 
   // Envia por broadcast em todas as interfaces de rede.
   Future<void> broadcast(Uint8List data, int port);
+
+  // Prefixos /24 das redes locais (ex.: 192.168.0). Vazio quando não é
+  // possível saber (navegador).
+  Future<List<String>> localSubnets();
+
+  // Envia o mesmo pacote a vários endereços (IP ou nome, como
+  // partitura.local), no máximo `concurrency` aberturas ao mesmo tempo, cada
+  // uma esperando até `timeout`. Usado na busca sem broadcast.
+  Future<void> probe(
+    List<String> addresses,
+    Uint8List data,
+    int port, {
+    int concurrency = 32,
+    Duration timeout = const Duration(milliseconds: 1200),
+  });
 
   Stream<UdpDatagram> get datagrams;
 

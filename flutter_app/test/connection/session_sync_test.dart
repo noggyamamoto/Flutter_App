@@ -47,6 +47,11 @@ class _FakeTransport implements UdpTransport {
   Future<void> broadcast(Uint8List data, int port) async {}
   @override
   void close() => _open = false;
+  @override
+  Future<List<String>> localSubnets() async => const [];
+  @override
+  Future<void> probe(List<String> addresses, Uint8List data, int port,
+      {int concurrency = 32, Duration timeout = const Duration(milliseconds: 1200)}) async {}
 
   @override
   void send(Uint8List data, String address, int port) {

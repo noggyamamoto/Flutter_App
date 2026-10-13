@@ -282,7 +282,9 @@ class _StatusHeader extends StatelessWidget {
           Icons.wifi_find,
           const Color(0xFF9B6DDA),
           'Procurando dispositivos',
-          'Mantenha o dispositivo ligado e na mesma rede Wi-Fi.',
+          'Mantenha o dispositivo ligado e na mesma rede Wi-Fi. '
+              'Se ele não responder logo, toda a rede local é consultada '
+              '(pode levar até 1 minuto no navegador).',
         ),
       DeviceConnectionStatus.connecting => (
           Icons.link,
