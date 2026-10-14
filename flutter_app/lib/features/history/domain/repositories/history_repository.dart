@@ -1,4 +1,6 @@
 import '../entities/performance_history.dart';
+import '../../../score/domain/entities/note_comparison.dart';
+import '../../../score/domain/entities/score_result.dart';
 
 abstract class HistoryRepository {
 
@@ -20,6 +22,12 @@ abstract class HistoryRepository {
     int? bpmFinal,
     int? notasTocadas,
     int? notasCorretas,
+    int? notasEsperadas,
+    int? notasExtras,
+    int? maiorSequencia,
+    int? compassosPorTrecho,
+    List<PhraseResult>? trechos,
+    Map<int, NoteFeedback>? resultadoNotas,
   });
 
   // Músicas tocadas recentemente (mais recentes primeiro).

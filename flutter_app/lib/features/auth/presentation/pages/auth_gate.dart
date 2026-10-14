@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../connection/presentation/pages/device_gate.dart';
 
 import '../providers/auth_provider.dart';
@@ -26,8 +27,8 @@ class AuthGate extends ConsumerWidget {
       case AuthStatus.initial:
 
         // Mostra uma tela de carregamento.
-        return const Scaffold(
-          backgroundColor: Color(0xFF0F0E17),
+        return Scaffold(
+          backgroundColor: context.colors.background,
 
           body: Center(
             child: CircularProgressIndicator(
@@ -43,8 +44,8 @@ class AuthGate extends ConsumerWidget {
       case AuthStatus.loading:
 
         // Mostra carregamento.
-        return const Scaffold(
-          backgroundColor: Color(0xFF0F0E17),
+        return Scaffold(
+          backgroundColor: context.colors.background,
 
           body: Center(
             child: CircularProgressIndicator(

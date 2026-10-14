@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 import '../providers/auth_provider.dart';
 import 'register_page.dart';
 
@@ -110,7 +112,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         authState.status == AuthStatus.loading;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0E17),
+      backgroundColor: context.colors.background,
 
       body: SafeArea(
         child: Center(
@@ -128,11 +130,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                 children: [
                   // Título.
-                  const Text(
+                  Text(
                     'Entrar',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                     ),
@@ -141,11 +143,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   const SizedBox(height: 8),
 
                   // Subtítulo.
-                  const Text(
+                  Text(
                     'Entre para continuar seus estudos.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: context.colors.textSecondary,
                       fontSize: 16,
                     ),
                   ),
@@ -159,22 +161,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     keyboardType:
                         TextInputType.emailAddress,
 
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
                     ),
 
                     decoration: InputDecoration(
                       labelText: 'E-mail',
-                      labelStyle: const TextStyle(
-                        color: Colors.white70,
+                      labelStyle: TextStyle(
+                        color: context.colors.textSecondary,
                       ),
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         Icons.email_outlined,
-                        color: Colors.white70,
+                        color: context.colors.textSecondary,
                       ),
                       filled: true,
                       fillColor:
-                          Colors.white.withValues(alpha: 0.08),
+                          context.colors.field,
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(12),
@@ -191,18 +193,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                     obscureText: !senhaVisivel,
 
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
                     ),
 
                     decoration: InputDecoration(
                       labelText: 'Senha',
-                      labelStyle: const TextStyle(
-                        color: Colors.white70,
+                      labelStyle: TextStyle(
+                        color: context.colors.textSecondary,
                       ),
-                      prefixIcon: const Icon(
+                      prefixIcon: Icon(
                         Icons.lock_outline,
-                        color: Colors.white70,
+                        color: context.colors.textSecondary,
                       ),
                       suffixIcon: IconButton(
                         onPressed: () {
@@ -214,12 +216,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           senhaVisivel
                               ? Icons.visibility_off
                               : Icons.visibility,
-                          color: Colors.white70,
+                          color: context.colors.textSecondary,
                         ),
                       ),
                       filled: true,
                       fillColor:
-                          Colors.white.withValues(alpha: 0.08),
+                          context.colors.field,
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(12),
@@ -276,10 +278,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         MainAxisAlignment.center,
 
                     children: [
-                      const Text(
+                      Text(
                         'Ainda não possui uma conta?',
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: context.colors.textSecondary,
                         ),
                       ),
 

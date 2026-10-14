@@ -25,6 +25,7 @@ class ConfigurationNotifier extends Notifier<PerformanceSettings> {
         autoTempo: prefs.getBool('${_prefix}autoTempo') ?? d.autoTempo,
         measuresPerPhrase: prefs.getInt('${_prefix}measuresPerPhrase') ?? d.measuresPerPhrase,
         zoom: prefs.getDouble('${_prefix}zoom') ?? d.zoom,
+        lightMode: prefs.getBool('${_prefix}lightMode') ?? d.lightMode,
       );
     } catch (_) {
       // Sem armazenamento disponível: mantém os valores padrão.

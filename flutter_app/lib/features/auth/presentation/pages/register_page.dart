@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 import '../providers/auth_provider.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
@@ -155,11 +157,11 @@ class _RegisterPageState
         authState.status == AuthStatus.loading;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0E17),
+      backgroundColor: context.colors.background,
 
       appBar: AppBar(
         backgroundColor:
-            const Color(0xFF0F0E17),
+            context.colors.background,
 
         foregroundColor: Colors.white,
 
@@ -186,11 +188,11 @@ class _RegisterPageState
 
                 children: [
                   // Título.
-                  const Text(
+                  Text(
                     'Crie sua conta',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
                     ),
@@ -199,11 +201,11 @@ class _RegisterPageState
                   const SizedBox(height: 8),
 
                   // Subtítulo.
-                  const Text(
+                  Text(
                     'Cadastre-se para acompanhar seu desempenho.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: context.colors.textSecondary,
                       fontSize: 15,
                     ),
                   ),
@@ -247,7 +249,7 @@ class _RegisterPageState
                         senhaVisivel
                             ? Icons.visibility_off
                             : Icons.visibility,
-                        color: Colors.white70,
+                        color: context.colors.textSecondary,
                       ),
                     ),
                   ),
@@ -273,7 +275,7 @@ class _RegisterPageState
                         confirmarSenhaVisivel
                             ? Icons.visibility_off
                             : Icons.visibility,
-                        color: Colors.white70,
+                        color: context.colors.textSecondary,
                       ),
                     ),
                   ),
@@ -363,8 +365,8 @@ class _RegisterPageState
       obscureText: obscureText,
 
       // Cor do texto.
-      style: const TextStyle(
-        color: Colors.white,
+      style: TextStyle(
+        color: context.colors.textPrimary,
       ),
 
       // Decoração.
@@ -373,14 +375,14 @@ class _RegisterPageState
         labelText: label,
 
         // Cor do label.
-        labelStyle: const TextStyle(
-          color: Colors.white70,
+        labelStyle: TextStyle(
+          color: context.colors.textSecondary,
         ),
 
         // Ícone inicial.
         prefixIcon: Icon(
           icon,
-          color: Colors.white70,
+          color: context.colors.textSecondary,
         ),
 
         // Ícone final opcional.
@@ -390,7 +392,7 @@ class _RegisterPageState
         filled: true,
 
         fillColor:
-            Colors.white.withValues(alpha: 0.08),
+            context.colors.field,
 
         // Bordas.
         border: OutlineInputBorder(

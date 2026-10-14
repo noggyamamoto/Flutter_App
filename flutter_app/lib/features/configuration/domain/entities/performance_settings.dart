@@ -19,6 +19,9 @@ class PerformanceSettings {
   // Ampliação dos símbolos da partitura (RU08).
   final double zoom;
 
+  // Aparência: o modo escuro é o padrão (identidade visual do app).
+  final bool lightMode;
+
   const PerformanceSettings({
     this.guideAudio = false,
     this.metronomeSound = true,
@@ -26,6 +29,7 @@ class PerformanceSettings {
     this.autoTempo = false,
     this.measuresPerPhrase = 4,
     this.zoom = 1.2,
+    this.lightMode = false,
   });
 
   PerformanceSettings copyWith({
@@ -35,6 +39,7 @@ class PerformanceSettings {
     bool? autoTempo,
     int? measuresPerPhrase,
     double? zoom,
+    bool? lightMode,
   }) {
     return PerformanceSettings(
       guideAudio: guideAudio ?? this.guideAudio,
@@ -43,6 +48,7 @@ class PerformanceSettings {
       autoTempo: autoTempo ?? this.autoTempo,
       measuresPerPhrase: measuresPerPhrase ?? this.measuresPerPhrase,
       zoom: zoom ?? this.zoom,
+      lightMode: lightMode ?? this.lightMode,
     );
   }
 
@@ -54,6 +60,7 @@ class PerformanceSettings {
       'autoTempo': autoTempo,
       'measuresPerPhrase': measuresPerPhrase,
       'zoom': zoom,
+      'lightMode': lightMode,
     };
   }
 }

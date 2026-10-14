@@ -12,11 +12,13 @@ class ScoreResultWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(24),
+        border: colors.isDark ? null : Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -30,14 +32,19 @@ class ScoreResultWidget extends StatelessWidget {
           _Bar(
             label: 'Ritmo (tempo e duração)',
             value: result.rhythmAccuracy,
-            color: AppColors.primary,
+            color: colors.primary,
           ),
           const SizedBox(height: 18),
           Wrap(
             spacing: 18,
             runSpacing: 8,
             children: [
-              _Info(icon: Icons.check_circle_outline, text: '${result.notesCorrect} de ${result.notesExpected} corretas'),
+              _Info(
+                icon: Icons.check_circle_outline,
+                text: result.notesExpected > 0
+                    ? '${result.notesCorrect} de ${result.notesExpected} corretas'
+                    : '${result.notesCorrect} corretas',
+              ),
               _Info(icon: Icons.add_circle_outline, text: '${result.extraNotes} extras'),
               _Info(
                 icon: result.completed ? Icons.flag : Icons.pause_circle_outline,
@@ -47,9 +54,9 @@ class ScoreResultWidget extends StatelessWidget {
           ),
           if (result.phrases.isNotEmpty) ...[
             const SizedBox(height: 18),
-            const Text(
+            Text(
               'Por trecho',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
+              style: TextStyle(color: colors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -66,7 +73,7 @@ class ScoreResultWidget extends StatelessWidget {
                     ),
                     child: Text(
                       '${phrase.phraseIndex + 1}: ${phrase.score.round()}%',
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: TextStyle(color: colors.textPrimary, fontSize: 13),
                     ),
                   ),
               ],
@@ -89,17 +96,18 @@ class _Bar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Expanded(
-              child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+              child: Text(label, style: TextStyle(color: colors.textSecondary, fontSize: 14)),
             ),
             Text(
               '${value.round()}%',
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(color: colors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -109,7 +117,7 @@ class _Bar extends StatelessWidget {
           child: LinearProgressIndicator(
             value: (value / 100).clamp(0, 1),
             minHeight: 10,
-            backgroundColor: Colors.white12,
+            backgroundColor: colors.subtle,
             color: color,
           ),
         ),
@@ -126,12 +134,13 @@ class _Info extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: Colors.white54, size: 18),
+        Icon(icon, color: colors.textMuted, size: 18),
         const SizedBox(width: 6),
-        Text(text, style: const TextStyle(color: Colors.white, fontSize: 13)),
+        Text(text, style: TextStyle(color: colors.textPrimary, fontSize: 13)),
       ],
     );
   }

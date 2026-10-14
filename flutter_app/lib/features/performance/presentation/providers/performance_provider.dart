@@ -1502,6 +1502,26 @@ class PerformanceNotifier
 
       notasCorretas:
           result?.notesCorrect,
+
+      // Detalhes para reabrir a execução pelo histórico com a mesma tela
+      // do fim da execução.
+      notasEsperadas:
+          result?.notesExpected,
+
+      notasExtras:
+          result?.extraNotes,
+
+      maiorSequencia:
+          state.bestStreak,
+
+      compassosPorTrecho:
+          ref.read(configurationProvider).measuresPerPhrase,
+
+      trechos:
+          result?.phrases,
+
+      resultadoNotas:
+          state.feedback,
     );
   }
 

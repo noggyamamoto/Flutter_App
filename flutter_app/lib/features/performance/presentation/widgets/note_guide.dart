@@ -35,9 +35,10 @@ class NoteGuide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final playedColor = playedFeedback == null
-        ? AppColors.textMuted
-        : (FeedbackColors.of(playedFeedback!) ?? AppColors.textMuted);
+        ? colors.textMuted
+        : (FeedbackColors.of(playedFeedback!) ?? colors.textMuted);
 
     final labels = Row(
       children: [
@@ -45,7 +46,7 @@ class NoteGuide extends StatelessWidget {
           child: _NoteLabel(
             caption: 'Próxima nota',
             value: expectedMidi != null ? ExpectedNote.noteName(expectedMidi!) : '—',
-            color: AppColors.primary,
+            color: colors.primary,
           ),
         ),
         const SizedBox(width: 8),
@@ -88,24 +89,25 @@ class _NoteLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceHigh,
+        color: colors.surfaceHigh,
         borderRadius: BorderRadius.circular(12),
         border: Border(left: BorderSide(color: color, width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(caption, style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          Text(caption, style: TextStyle(color: colors.textMuted, fontSize: 11)),
           const SizedBox(height: 2),
           // Troca imediata: a nota tocada aparece no quadro em que chega.
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+            style: TextStyle(color: colors.textPrimary, fontSize: 17, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -143,6 +145,7 @@ class MiniKeyboard extends StatelessWidget {
             expectedMidi: expectedMidi,
             playedMidi: playedMidi,
             playedColor: playedColor,
+            colors: context.colors,
           ),
         );
       },
@@ -170,6 +173,7 @@ class _KeyboardPainter extends CustomPainter {
   final int? expectedMidi;
   final int? playedMidi;
   final Color playedColor;
+  final AppColors colors;
 
   _KeyboardPainter({
     required this.fontFamily,
@@ -178,11 +182,12 @@ class _KeyboardPainter extends CustomPainter {
     required this.expectedMidi,
     required this.playedMidi,
     required this.playedColor,
+    required this.colors,
   });
 
   Color? _highlight(int midi) {
     if (midi == playedMidi) return playedColor;
-    if (midi == expectedMidi) return AppColors.primary;
+    if (midi == expectedMidi) return colors.primary;
     return null;
   }
 
@@ -200,11 +205,18 @@ class _KeyboardPainter extends CustomPainter {
 
     for (var i = 0; i < whites.length; i++) {
       final rect = Rect.fromLTWH(i * whiteW + 1, 0, whiteW - 2, size.height);
-      final color = _highlight(whites[i]) ?? const Color(0xFFF2F1F7);
-      canvas.drawRRect(
-        RRect.fromRectAndCorners(rect, bottomLeft: radius, bottomRight: radius),
-        Paint()..color = color,
-      );
+      final color = _highlight(whites[i]) ?? colors.whiteKey;
+      final key = RRect.fromRectAndCorners(rect, bottomLeft: radius, bottomRight: radius);
+      canvas.drawRRect(key, Paint()..color = color);
+      // No modo claro as teclas brancas ficam sobre fundo branco: contorno.
+      if (!colors.isDark) {
+        canvas.drawRRect(
+          key,
+          Paint()
+            ..color = colors.border
+            ..style = PaintingStyle.stroke,
+        );
+      }
       // Nome do Dó para orientação.
       if (whites[i] % 12 == 0) {
         final tp = TextPainter(
@@ -212,7 +224,7 @@ class _KeyboardPainter extends CustomPainter {
             text: 'C${whites[i] ~/ 12 - 1}',
             style: TextStyle(
               fontFamily: fontFamily,
-              color: _highlight(whites[i]) != null ? Colors.white : const Color(0xFF8A8799),
+              color: _highlight(whites[i]) != null ? Colors.white : colors.whiteKeyLabel,
               fontSize: (whiteW * 0.38).clamp(7.0, 11.0),
               fontWeight: FontWeight.w600,
             ),
@@ -232,7 +244,7 @@ class _KeyboardPainter extends CustomPainter {
       final rect = Rect.fromLTWH(x, 0, blackW, blackH);
       canvas.drawRRect(
         RRect.fromRectAndCorners(rect, bottomLeft: radius, bottomRight: radius),
-        Paint()..color = _highlight(black) ?? const Color(0xFF1B1928),
+        Paint()..color = _highlight(black) ?? colors.blackKey,
       );
     }
   }
@@ -243,5 +255,6 @@ class _KeyboardPainter extends CustomPainter {
       old.whiteCount != whiteCount ||
       old.expectedMidi != expectedMidi ||
       old.playedMidi != playedMidi ||
-      old.playedColor != playedColor;
+      old.playedColor != playedColor ||
+      old.colors != colors;
 }

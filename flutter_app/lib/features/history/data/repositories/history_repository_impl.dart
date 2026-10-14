@@ -2,6 +2,8 @@ import '../../domain/entities/performance_history.dart';
 import '../../domain/repositories/history_repository.dart';
 
 import '../datasources/history_remote_datasource.dart';
+import '../../../score/domain/entities/note_comparison.dart';
+import '../../../score/domain/entities/score_result.dart';
 
 class HistoryRepositoryImpl
     implements HistoryRepository {
@@ -45,6 +47,12 @@ class HistoryRepositoryImpl
     int? bpmFinal,
     int? notasTocadas,
     int? notasCorretas,
+    int? notasEsperadas,
+    int? notasExtras,
+    int? maiorSequencia,
+    int? compassosPorTrecho,
+    List<PhraseResult>? trechos,
+    Map<int, NoteFeedback>? resultadoNotas,
   }) {
 
     // Delega o salvamento para o DataSource.
@@ -59,6 +67,12 @@ class HistoryRepositoryImpl
       bpmFinal: bpmFinal,
       notasTocadas: notasTocadas,
       notasCorretas: notasCorretas,
+      notasEsperadas: notasEsperadas,
+      notasExtras: notasExtras,
+      maiorSequencia: maiorSequencia,
+      compassosPorTrecho: compassosPorTrecho,
+      trechos: trechos,
+      resultadoNotas: resultadoNotas,
     );
   }
 

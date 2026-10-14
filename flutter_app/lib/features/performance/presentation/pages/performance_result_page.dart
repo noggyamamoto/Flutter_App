@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 import '../../../history/domain/entities/performance_history.dart';
+import '../../../history/domain/services/evolution_stats.dart';
+import '../../../history/presentation/pages/past_performance_page.dart';
 import '../../../history/presentation/providers/history_provider.dart';
+import '../../../history/presentation/widgets/evolution_panel.dart';
 import '../../../history/presentation/widgets/performance_history_list.dart';
 
 import '../../../gamification/domain/entities/trophy.dart';
@@ -17,21 +21,24 @@ import '../../../score/presentation/widgets/score_result_widget.dart';
 
 import '../../../songs/domain/entities/song.dart';
 
+import '../widgets/feedback_colors.dart';
 import '../widgets/music_history_widget.dart';
-import '../widgets/performance_chart.dart';
 import '../widgets/performance_score_card.dart';
 
 import 'performance_page.dart';
 
+// Resumo da performance: exibido ao fim da execução e, com `execution`,
+// ao abrir uma execução anterior pelo histórico (mesma tela, com os dados
+// salvos daquela execução).
 class PerformanceResultPage extends ConsumerStatefulWidget {
-  // Música que acabou de ser executada.
+  // Música executada.
   final Song song;
 
-  // Precisão da execução atual.
+  // Precisão da execução.
   final double precision;
 
-  // Quantidade de notas executadas.
-  final int notesPlayed;
+  // Quantidade de notas executadas (execuções antigas podem não ter).
+  final int? notesPlayed;
 
   // Avaliação detalhada (altura, ritmo, frases).
   final ScoreResult? result;
@@ -46,6 +53,13 @@ class PerformanceResultPage extends ConsumerStatefulWidget {
   // Maior sequência de acertos.
   final int? bestStreak;
 
+  // ID da execução salva agora (destacada na aba Evolução).
+  final String? executionId;
+
+  // Execução anterior aberta pelo histórico (null = execução que acabou de
+  // terminar).
+  final PerformanceHistory? execution;
+
   const PerformanceResultPage({
     super.key,
     required this.song,
@@ -56,7 +70,30 @@ class PerformanceResultPage extends ConsumerStatefulWidget {
     this.feedback = const {},
     this.newTrophies = const [],
     this.bestStreak,
+    this.executionId,
+    this.execution,
   });
+
+  // Mesma tela, com os dados salvos de uma execução anterior.
+  factory PerformanceResultPage.fromHistory({
+    Key? key,
+    required Song song,
+    required PerformanceHistory execution,
+    ScoreStructure? structure,
+  }) {
+    return PerformanceResultPage(
+      key: key,
+      song: song,
+      precision: execution.score,
+      notesPlayed: execution.notesPlayed,
+      result: execution.scoreResult,
+      structure: structure,
+      feedback: execution.noteFeedback,
+      bestStreak: execution.bestStreak,
+      executionId: execution.executionId,
+      execution: execution,
+    );
+  }
 
   @override
   ConsumerState<PerformanceResultPage> createState() =>
@@ -68,21 +105,25 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
   // 1 = Evolução.
   int selectedTab = 0;
 
+  bool get _isPast => widget.execution != null;
+
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+
     // Recupera o usuário atualmente logado.
     final user = ref.watch(authProvider).user;
 
     // Se não houver usuário logado,
     // não conseguimos buscar o histórico.
     if (user == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0F0E17),
+      return Scaffold(
+        backgroundColor: colors.background,
 
         body: Center(
           child: Text(
             'Usuário não autenticado.',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: colors.textPrimary),
           ),
         ),
       );
@@ -99,7 +140,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
     final historyAsync = ref.watch(historyProvider(historyParams));
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0E17),
+      backgroundColor: colors.background,
 
       body: SafeArea(
         child: SingleChildScrollView(
@@ -114,15 +155,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
 
                 children: [
                   // Título da página.
-                  const Text(
-                    'Resumo da performance',
-
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  _buildHeader(colors, historyAsync.asData?.value),
 
                   const SizedBox(height: 24),
 
@@ -142,7 +175,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
                     ScoreResultWidget(result: widget.result!),
 
                   // Troféus conquistados agora (RFA10).
-                  if (widget.newTrophies.isNotEmpty) ...[
+                  if (widget.newTrophies.isNotEmpty && !_isPast) ...[
                     const SizedBox(height: 16),
 
                     _buildNewTrophies(),
@@ -175,11 +208,14 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
 
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        Navigator.pushReplacement(
+                        // Fecha os resumos abertos (o atual e os do
+                        // histórico) e abre a execução.
+                        Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(
                             builder: (_) => PerformancePage(song: widget.song),
                           ),
+                          (route) => route.isFirst,
                         );
                       },
 
@@ -235,6 +271,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
 
   Widget _buildTab({required String title, required int index}) {
     final selected = selectedTab == index;
+    final colors = context.colors;
 
     return GestureDetector(
       onTap: () {
@@ -249,7 +286,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: selected ? Colors.deepPurple : Colors.white24,
+              color: selected ? Colors.deepPurple : colors.outline,
 
               width: 2,
             ),
@@ -262,7 +299,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
           textAlign: TextAlign.center,
 
           style: TextStyle(
-            color: selected ? Colors.white : Colors.white54,
+            color: selected ? colors.textPrimary : colors.textMuted,
 
             fontWeight: FontWeight.bold,
           ),
@@ -272,19 +309,73 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
   }
 
   // -------------------------------------------------------
+  // CABEÇALHO
+  // -------------------------------------------------------
+
+  Widget _buildHeader(AppColors colors, List<PerformanceHistory>? history) {
+    final title = Text(
+      'Resumo da performance',
+      style: TextStyle(
+        color: colors.textPrimary,
+        fontSize: 26,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+
+    final execution = widget.execution;
+    if (execution == null) return title;
+
+    // Execução anterior: número e data da execução, com volta ao resumo
+    // anterior.
+    final ordinal = history == null
+        ? null
+        : EvolutionStats.from(history).ordinalOf(execution.executionId);
+
+    return Row(
+      children: [
+        IconButton(
+          tooltip: 'Voltar',
+          onPressed: () => Navigator.maybePop(context),
+          icon: Icon(Icons.arrow_back_rounded, color: colors.textPrimary),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              title,
+              const SizedBox(height: 4),
+              Text(
+                '${ordinal != null ? '$ordinalª execução · ' : ''}'
+                '${formatExecutionDate(execution.date)} · ${widget.song.titulo}',
+                style: TextStyle(color: colors.textMuted, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // -------------------------------------------------------
   // ABA HISTÓRICO
   // -------------------------------------------------------
 
   Widget _buildHistory() {
+    final colors = context.colors;
+
+    // Execução salva antes do registro nota a nota.
+    final noDetails = _isPast && !widget.execution!.hasNoteDetails;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
 
       children: [
-        const Text(
+        Text(
           'Notas executadas',
 
           style: TextStyle(
-            color: Colors.white,
+            color: colors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -292,31 +383,57 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
 
         const SizedBox(height: 12),
 
-        // Notas da execução atual coloridas
-        // sobre a partitura.
-        MusicHistoryWidget(
-          structure: widget.structure,
-          feedback: widget.feedback,
-        ),
+        if (noDetails)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: colors.surfaceLow,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.border.withValues(alpha: 0.6)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, color: colors.textMuted),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Esta execução foi salva antes do registro nota a nota. '
+                    'As próximas execuções mostram aqui cada nota colorida '
+                    'sobre a partitura.',
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          // Notas da execução coloridas
+          // sobre a partitura.
+          MusicHistoryWidget(
+            structure: widget.structure,
+            feedback: widget.feedback,
+          ),
 
-        const SizedBox(height: 12),
+          const SizedBox(height: 12),
 
-        // Legenda das cores.
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          // Legenda das cores.
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
 
-          children: [
-            _Legend(color: Colors.green, label: 'Correto'),
+            children: [
+              _Legend(color: FeedbackColors.correct, label: 'Correto'),
 
-            SizedBox(width: 20),
+              SizedBox(width: 20),
 
-            _Legend(color: Colors.orange, label: 'Aproximado'),
+              _Legend(color: FeedbackColors.approximate, label: 'Aproximado'),
 
-            SizedBox(width: 20),
+              SizedBox(width: 20),
 
-            _Legend(color: Colors.red, label: 'Incorreto'),
-          ],
-        ),
+              _Legend(color: FeedbackColors.incorrect, label: 'Incorreto'),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -326,99 +443,63 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
   // -------------------------------------------------------
 
   Widget _buildEvolution(AsyncValue<List<PerformanceHistory>> historyAsync) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Trata os três estados possíveis
+    // da consulta ao Firestore.
+    return historyAsync.when(
+      // Enquanto busca os dados.
+      loading: () {
+        return const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      },
 
-      children: [
-        const Text(
-          'Histórico de execuções',
+      // Se ocorrer algum erro.
+      error: (error, stackTrace) {
+        return Text(
+          'Erro ao carregar histórico: '
+          '$error',
 
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+          style: const TextStyle(color: FeedbackColors.incorrect),
+        );
+      },
 
-        const SizedBox(height: 16),
-
-        // Trata os três estados possíveis
-        // da consulta ao Firestore.
-        historyAsync.when(
-          // Enquanto busca os dados.
-          loading: () {
-            return const Center(child: CircularProgressIndicator());
-          },
-
-          // Se ocorrer algum erro.
-          error: (error, stackTrace) {
-            return Text(
-              'Erro ao carregar histórico: '
-              '$error',
-
-              style: const TextStyle(color: Colors.red),
-            );
-          },
-
-          // Quando os dados chegam.
-          data: (history) {
-            // Gráfico de evolução a partir da
-            // 10ª execução da mesma música (RFA11).
-            const minimum = 10;
-
-            final values = history.reversed.map((h) => h.score).toList();
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-
-                  margin: const EdgeInsets.only(bottom: 16),
-
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF191827),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-
-                  child: history.length >= minimum
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Evolução da pontuação',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            PerformanceChart(values: values),
-                          ],
-                        )
-                      : Text(
-                          'O gráfico de evolução aparece a partir da '
-                          '$minimum.ª execução desta música. '
-                          'Faltam ${minimum - history.length}.',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
-                        ),
-                ),
-
-                PerformanceHistoryList(history: history),
-              ],
-            );
-          },
-        ),
-      ],
+      // Quando os dados chegam: resumo, gráfico (a partir da 10ª
+      // execução – RFA11) e lista das execuções.
+      data: (history) {
+        return EvolutionPanel(
+          history: history,
+          currentExecutionId: widget.executionId,
+          onOpen: _openExecution,
+        );
+      },
     );
+  }
+
+  // Abre uma execução do histórico na mesma tela do fim da execução.
+  void _openExecution(PerformanceHistory execution) {
+    if (execution.executionId == widget.executionId) {
+      setState(() => selectedTab = 0);
+      return;
+    }
+
+    final route = MaterialPageRoute<void>(
+      builder: (_) => PastPerformancePage(song: widget.song, execution: execution),
+    );
+
+    // Entre execuções anteriores, troca a tela (a volta leva ao resumo da
+    // execução que acabou de terminar).
+    if (_isPast) {
+      Navigator.pushReplacement(context, route);
+    } else {
+      Navigator.push(context, route);
+    }
   }
 
   // Destaque dos troféus conquistados.
   Widget _buildNewTrophies() {
+    final colors = context.colors;
+
     return InkWell(
       borderRadius: BorderRadius.circular(16),
 
@@ -453,8 +534,8 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
                     widget.newTrophies.length == 1
                         ? 'Novo troféu conquistado!'
                         : '${widget.newTrophies.length} novos troféus!',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: colors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -464,13 +545,13 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
 
                   Text(
                     widget.newTrophies.map((t) => t.titulo).join(', '),
-                    style: const TextStyle(color: Colors.white70),
+                    style: TextStyle(color: colors.textSecondary),
                   ),
                 ],
               ),
             ),
 
-            const Icon(Icons.chevron_right, color: Colors.white54),
+            Icon(Icons.chevron_right, color: colors.textMuted),
           ],
         ),
       ),
@@ -506,7 +587,7 @@ class _Legend extends StatelessWidget {
         Text(
           label,
 
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
+          style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
         ),
       ],
     );

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_app/features/performance/presentation/pages/performance_page.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 import 'package:flutter_app/features/songs/domain/entities/song.dart';
 import 'package:flutter_app/features/songs/presentation/providers/songs_provider.dart';
 
@@ -21,7 +23,7 @@ class SongsPage extends ConsumerWidget {
     final songsAsync = ref.watch(songsProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0E17),
+      backgroundColor: context.colors.background,
       body: SafeArea(
         child: songsAsync.when(
           loading: () => const Center(
@@ -30,7 +32,7 @@ class SongsPage extends ConsumerWidget {
           error: (error, stackTrace) => Center(
             child: Text(
               'Erro: $error',
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: context.colors.textPrimary),
             ),
           ),
           data: (songs) {
@@ -109,10 +111,10 @@ class _SongsContentState extends State<_SongsContent> {
 
           const SizedBox(height: 28),
 
-          const Text(
+          Text(
             'Escolha uma música',
             style: TextStyle(
-              color: Colors.white,
+              color: context.colors.textPrimary,
               fontSize: 30,
               fontWeight: FontWeight.bold,
             ),
@@ -120,10 +122,10 @@ class _SongsContentState extends State<_SongsContent> {
 
           const SizedBox(height: 26),
 
-          const Text(
+          Text(
             'Tocadas Recentemente',
             style: TextStyle(
-              color: Colors.white,
+              color: context.colors.textPrimary,
               fontSize: 21,
               fontWeight: FontWeight.bold,
             ),
@@ -176,14 +178,14 @@ class _Header extends ConsumerWidget {
         Row(
           children: [
             // Saudação à esquerda.
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Olá,',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: context.colors.textSecondary,
                       fontSize: 14,
                     ),
                   ),
@@ -191,7 +193,7 @@ class _Header extends ConsumerWidget {
                   Text(
                     'Pronto para praticar?',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -259,9 +261,9 @@ class _Header extends ConsumerWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFF232136),
+              color: context.colors.card,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFF39374A)),
+              border: Border.all(color: context.colors.border),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -270,16 +272,16 @@ class _Header extends ConsumerWidget {
                   connected
                       ? (simulated ? Icons.smart_toy_outlined : Icons.sensors)
                       : Icons.sensors_off,
-                  color: connected ? Colors.greenAccent : Colors.redAccent,
+                  color: connected ? context.colors.positive : Colors.redAccent,
                   size: 18,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   connected ? deviceName ?? '' : 'Nenhum dispositivo conectado',
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: TextStyle(color: context.colors.textPrimary, fontSize: 13),
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right, color: Colors.white54, size: 18),
+                Icon(Icons.chevron_right, color: context.colors.textMuted, size: 18),
               ],
             ),
           ),
@@ -305,10 +307,10 @@ class _CircleButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: const Color(0xFF232136),
-        shape: const CircleBorder(
+        color: context.colors.card,
+        shape: CircleBorder(
           side: BorderSide(
-            color: Color(0xFF39374A),
+            color: context.colors.border,
           ),
         ),
         child: InkWell(
@@ -318,7 +320,7 @@ class _CircleButton extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             child: Icon(
               icon,
-              color: Colors.white,
+              color: context.colors.textPrimary,
               size: 24,
             ),
           ),
@@ -340,10 +342,10 @@ class _SearchBar extends StatelessWidget {
     return Container(
       height: 52,
       decoration: BoxDecoration(
-        color: const Color(0xFF232136),
+        color: context.colors.card,
         borderRadius: BorderRadius.circular(30),
         border: Border.all(
-          color: const Color(0xFF39374A),
+          color: context.colors.border,
         ),
       ),
       child: Row(
@@ -353,15 +355,15 @@ class _SearchBar extends StatelessWidget {
               padding: const EdgeInsets.only(left: 20),
               child: TextField(
                 onChanged: onChanged,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: context.colors.textPrimary,
                   fontSize: 16,
                 ),
-                cursorColor: const Color(0xFF9B6DDA),
-                decoration: const InputDecoration(
+                cursorColor: context.colors.primarySoft,
+                decoration: InputDecoration(
                   hintText: 'Procurar',
                   hintStyle: TextStyle(
-                    color: Colors.white,
+                    color: context.colors.textPrimary,
                     fontSize: 16,
                   ),
                   border: InputBorder.none,
@@ -373,13 +375,13 @@ class _SearchBar extends StatelessWidget {
             width: 43,
             height: 43,
             margin: const EdgeInsets.only(right: 4),
-            decoration: const BoxDecoration(
-              color: Color(0xFF9B6DDA),
+            decoration: BoxDecoration(
+              color: context.colors.primarySoft,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.search,
-              color: Color(0xFF171522),
+              color: context.colors.surfaceLow,
               size: 27,
             ),
           ),
@@ -411,9 +413,9 @@ class _RecentSongs extends ConsumerWidget {
     ];
 
     if (recentSongs.isEmpty) {
-      return const Text(
+      return Text(
         'Nenhuma música tocada ainda.',
-        style: TextStyle(color: Colors.white70),
+        style: TextStyle(color: context.colors.textSecondary),
       );
     }
 
@@ -441,15 +443,15 @@ class _RecentSongs extends ConsumerWidget {
                   width: 103,
                   height: 103,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF232136),
+                    color: context.colors.card,
                     borderRadius: BorderRadius.circular(9),
                     border: Border.all(
-                      color: const Color(0xFF39374A),
+                      color: context.colors.border,
                     ),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.music_note,
-                    color: Colors.white54,
+                    color: context.colors.textMuted,
                     size: 35,
                   ),
                 ),
@@ -459,8 +461,8 @@ class _RecentSongs extends ConsumerWidget {
                   maxLines: 2,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: context.colors.textPrimary,
                     fontSize: 15,
                   ),
                 ),
@@ -492,8 +494,8 @@ class _SongSection extends StatelessWidget {
 
         Text(
           title,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: context.colors.textPrimary,
             fontSize: 21,
             fontWeight: FontWeight.bold,
           ),
@@ -502,10 +504,10 @@ class _SongSection extends StatelessWidget {
         const SizedBox(height: 18),
 
         if (songs.isEmpty)
-          const Text(
+          Text(
             'Nenhuma música disponível.',
             style: TextStyle(
-              color: Colors.white70,
+              color: context.colors.textSecondary,
               fontSize: 15,
             ),
           ),
@@ -547,15 +549,15 @@ class _SongCard extends StatelessWidget {
               width: 103,
               height: 103,
               decoration: BoxDecoration(
-                color: const Color(0xFF232136),
+                color: context.colors.card,
                 borderRadius: BorderRadius.circular(9),
                 border: Border.all(
-                  color: const Color(0xFF39374A),
+                  color: context.colors.border,
                 ),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.music_note,
-                color: Colors.white54,
+                color: context.colors.textMuted,
                 size: 35,
               ),
             ),
@@ -570,8 +572,8 @@ class _SongCard extends StatelessWidget {
                   children: [
                     Text(
                       song.titulo,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: context.colors.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -583,8 +585,8 @@ class _SongCard extends StatelessWidget {
                       song.compositor,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: context.colors.textPrimary,
                         fontSize: 15,
                       ),
                     ),
@@ -593,8 +595,8 @@ class _SongCard extends StatelessWidget {
 
                     Text(
                       '${song.bpmPadrao} BPM',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: context.colors.textPrimary,
                         fontSize: 15,
                       ),
                     ),

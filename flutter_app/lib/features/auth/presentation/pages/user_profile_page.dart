@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 import '../../../connection/presentation/providers/connection_provider.dart';
 import '../providers/auth_provider.dart';
 
@@ -40,10 +42,10 @@ class UserProfilePage extends ConsumerWidget {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0E17),
+      backgroundColor: context.colors.background,
 
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F0E17),
+        backgroundColor: context.colors.background,
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text('Meu perfil'),
@@ -51,10 +53,10 @@ class UserProfilePage extends ConsumerWidget {
 
       body: user == null
           // Caso não haja usuário, mostra mensagem.
-          ? const Center(
+          ? Center(
               child: Text(
                 'Nenhum usuário autenticado.',
-                style: TextStyle(color: Colors.white70),
+                style: TextStyle(color: context.colors.textSecondary),
               ),
             )
           : SafeArea(
@@ -95,8 +97,8 @@ class UserProfilePage extends ConsumerWidget {
                               ? 'Usuário'
                               : user.nome,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: context.colors.textPrimary,
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
                           ),
@@ -108,8 +110,8 @@ class UserProfilePage extends ConsumerWidget {
                         Text(
                           user.email,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: context.colors.textSecondary,
                             fontSize: 14,
                           ),
                         ),
@@ -217,14 +219,14 @@ class UserProfilePage extends ConsumerWidget {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1E1B2E),
-          title: const Text(
+          backgroundColor: context.colors.surface,
+          title: Text(
             'Sair da conta?',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: context.colors.textPrimary),
           ),
-          content: const Text(
+          content: Text(
             'Você precisará fazer login novamente para acessar o app.',
-            style: TextStyle(color: Colors.white70),
+            style: TextStyle(color: context.colors.textSecondary),
           ),
           actions: [
             TextButton(
@@ -290,12 +292,12 @@ class _InfoTile extends StatelessWidget {
         vertical: 14,
       ),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
+        color: context.colors.field,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white70),
+          Icon(icon, color: context.colors.textSecondary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -303,16 +305,16 @@ class _InfoTile extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: Colors.white54,
+                  style: TextStyle(
+                    color: context.colors.textMuted,
                     fontSize: 12,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: context.colors.textPrimary,
                     fontSize: 15,
                   ),
                   overflow: TextOverflow.ellipsis,

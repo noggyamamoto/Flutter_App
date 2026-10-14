@@ -1,4 +1,6 @@
 import '../models/performance_history_model.dart';
+import '../../../score/domain/entities/note_comparison.dart';
+import '../../../score/domain/entities/score_result.dart';
 
 abstract class HistoryRemoteDataSource {
 
@@ -21,6 +23,12 @@ abstract class HistoryRemoteDataSource {
     int? bpmFinal,
     int? notasTocadas,
     int? notasCorretas,
+    int? notasEsperadas,
+    int? notasExtras,
+    int? maiorSequencia,
+    int? compassosPorTrecho,
+    List<PhraseResult>? trechos,
+    Map<int, NoteFeedback>? resultadoNotas,
   });
 
   // IDs das músicas tocadas recentemente pelo usuário.

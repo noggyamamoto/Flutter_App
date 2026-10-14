@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 
 import 'core/theme/app_colors.dart';
+import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/pages/auth_gate.dart';
 import 'features/configuration/presentation/providers/configuration_provider.dart';
 
@@ -28,16 +29,19 @@ final firebaseInitProvider = FutureProvider<FirebaseApp>(
   retry: (_, _) => null,
 );
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Modo escuro (padrão) ou claro, escolhido nas Configurações.
+    final lightMode = ref.watch(configurationProvider.select((s) => s.lightMode));
+
     return MaterialApp(
       title: 'Partitura IoT',
-      theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: lightMode ? ThemeMode.light : ThemeMode.dark,
       home: const _Startup(),
     );
   }
@@ -72,19 +76,21 @@ class _Splash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: colors.background,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.music_note_rounded, color: AppColors.primary, size: 56),
+              Icon(Icons.music_note_rounded, color: colors.primary, size: 56),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Partitura IoT',
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(color: colors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 24),
               if (message == null)
@@ -93,7 +99,7 @@ class _Splash extends StatelessWidget {
                 Text(
                   message!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(color: colors.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(onPressed: onRetry, child: const Text('Tentar novamente')),

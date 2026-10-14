@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 import '../../domain/entities/device.dart';
 import '../providers/connection_provider.dart';
 
@@ -76,11 +78,11 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
         state.status == DeviceConnectionStatus.connecting;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0E17),
+      backgroundColor: context.colors.background,
 
       appBar: widget.pushed
           ? AppBar(
-              backgroundColor: const Color(0xFF0F0E17),
+              backgroundColor: context.colors.background,
               foregroundColor: Colors.white,
               elevation: 0,
               title: const Text('Dispositivo'),
@@ -198,10 +200,10 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
 
                     const SizedBox(height: 28),
 
-                    const Text(
+                    Text(
                       'Sem o dispositivo por perto?',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: context.colors.textSecondary,
                         fontSize: 14,
                       ),
                     ),
@@ -214,7 +216,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
                         onPressed: busy ? null : _useSimulator,
                         icon: const Icon(Icons.smart_toy_outlined),
                         label: const Text('Usar modo demonstração'),
-                        style: _outlinedStyle(const Color(0xFF9B6DDA)),
+                        style: _outlinedStyle(context.colors.primarySoft),
                       ),
                     ),
 
@@ -222,9 +224,9 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
 
                     TextButton(
                       onPressed: busy ? null : _skip,
-                      child: const Text(
+                      child: Text(
                         'Continuar sem dispositivo',
-                        style: TextStyle(color: Colors.white70),
+                        style: TextStyle(color: context.colors.textSecondary),
                       ),
                     ),
                   ],
@@ -274,13 +276,13 @@ class _StatusHeader extends StatelessWidget {
     final (IconData icon, Color color, String title, String subtitle) = switch (state.status) {
       DeviceConnectionStatus.connected when connected => (
           Icons.sensors,
-          Colors.greenAccent,
+          context.colors.positive,
           'Dispositivo conectado',
           'Tudo pronto para praticar.',
         ),
       DeviceConnectionStatus.searching => (
           Icons.wifi_find,
-          const Color(0xFF9B6DDA),
+          context.colors.primarySoft,
           'Procurando dispositivos',
           'Mantenha o dispositivo ligado e na mesma rede Wi-Fi. '
               'Se ele não responder logo, toda a rede local é consultada '
@@ -288,13 +290,13 @@ class _StatusHeader extends StatelessWidget {
         ),
       DeviceConnectionStatus.connecting => (
           Icons.link,
-          const Color(0xFF9B6DDA),
+          context.colors.primarySoft,
           'Conectando...',
           'Aguardando a confirmação do dispositivo.',
         ),
       _ => (
           Icons.sensors_off,
-          Colors.white54,
+          context.colors.textMuted,
           'Nenhum dispositivo conectado',
           'Conecte-se ao dispositivo próximo ao seu instrumento.',
         ),
@@ -306,7 +308,7 @@ class _StatusHeader extends StatelessWidget {
           width: 110,
           height: 110,
           decoration: BoxDecoration(
-            color: const Color(0xFF232136),
+            color: context.colors.card,
             shape: BoxShape.circle,
             border: Border.all(
               color: color.withValues(alpha: 0.7),
@@ -319,8 +321,8 @@ class _StatusHeader extends StatelessWidget {
         Text(
           title,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: context.colors.textPrimary,
             fontSize: 26,
             fontWeight: FontWeight.bold,
           ),
@@ -329,8 +331,8 @@ class _StatusHeader extends StatelessWidget {
         Text(
           subtitle,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white70,
+          style: TextStyle(
+            color: context.colors.textSecondary,
             fontSize: 15,
           ),
         ),
@@ -355,9 +357,9 @@ class _ConnectedCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF232136),
+        color: context.colors.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF39374A)),
+        border: Border.all(color: context.colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -366,14 +368,14 @@ class _ConnectedCard extends StatelessWidget {
             children: [
               Icon(
                 device.isSimulated ? Icons.smart_toy_outlined : Icons.memory,
-                color: const Color(0xFF9B6DDA),
+                color: context.colors.primarySoft,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   device.name,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: context.colors.textPrimary,
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
                   ),
@@ -383,24 +385,24 @@ class _ConnectedCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           if (!device.isSimulated) ...[
-            _info('Endereço', device.address),
-            _info('Firmware', device.firmware),
+            _info(context, 'Endereço', device.address),
+            _info(context, 'Firmware', device.firmware),
             if (state.rssi != null && state.rssi != 0)
-              _info('Sinal Wi-Fi', '${state.rssi} dBm'),
+              _info(context, 'Sinal Wi-Fi', '${state.rssi} dBm'),
             if (state.noiseFloorDb != null)
-              _info('Ruído ambiente', '${state.noiseFloorDb!.toStringAsFixed(0)} dBFS'),
+              _info(context, 'Ruído ambiente', '${state.noiseFloorDb!.toStringAsFixed(0)} dBFS'),
           ] else
-            const Text(
+            Text(
               'As notas serão tocadas por um aluno virtual, com pequenos '
               'erros, para demonstrar o funcionamento do sistema.',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
+              style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
             ),
         ],
       ),
     );
   }
 
-  Widget _info(String label, String value) {
+  Widget _info(BuildContext context, String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
@@ -409,13 +411,13 @@ class _ConnectedCard extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
+              style: TextStyle(color: context.colors.textMuted, fontSize: 13),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(color: context.colors.textPrimary, fontSize: 14),
             ),
           ),
         ],
@@ -446,7 +448,7 @@ class _DeviceTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
-        color: const Color(0xFF232136),
+        color: context.colors.card,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
@@ -455,11 +457,11 @@ class _DeviceTile extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF39374A)),
+              border: Border.all(color: context.colors.border),
             ),
             child: Row(
               children: [
-                const Icon(Icons.memory, color: Color(0xFF9B6DDA), size: 30),
+                Icon(Icons.memory, color: context.colors.primarySoft, size: 30),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -467,8 +469,8 @@ class _DeviceTile extends StatelessWidget {
                     children: [
                       Text(
                         device.name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: context.colors.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -477,8 +479,8 @@ class _DeviceTile extends StatelessWidget {
                       Text(
                         '${device.address} · firmware ${device.firmware}'
                         '${device.busy ? ' · em uso' : ''}',
-                        style: const TextStyle(
-                          color: Colors.white54,
+                        style: TextStyle(
+                          color: context.colors.textMuted,
                           fontSize: 13,
                         ),
                       ),
@@ -509,7 +511,7 @@ class _SignalIcon extends StatelessWidget {
             : rssi > -75
                 ? Icons.network_wifi_2_bar
                 : Icons.network_wifi_1_bar;
-    return Icon(icon, color: Colors.white70);
+    return Icon(icon, color: context.colors.textSecondary);
   }
 }
 
@@ -534,20 +536,20 @@ class _IpField extends StatelessWidget {
       controller: controller,
       enabled: enabled,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: context.colors.textPrimary),
       onSubmitted: (_) => onSubmit(),
       decoration: InputDecoration(
         labelText: 'Conectar pelo IP (opcional)',
         hintText: 'ex.: 192.168.0.42',
-        hintStyle: const TextStyle(color: Colors.white38),
-        labelStyle: const TextStyle(color: Colors.white70),
-        prefixIcon: const Icon(Icons.lan_outlined, color: Colors.white70),
+        hintStyle: TextStyle(color: context.colors.textMuted),
+        labelStyle: TextStyle(color: context.colors.textSecondary),
+        prefixIcon: Icon(Icons.lan_outlined, color: context.colors.textSecondary),
         suffixIcon: IconButton(
           onPressed: enabled ? onSubmit : null,
-          icon: const Icon(Icons.arrow_forward, color: Colors.white70),
+          icon: Icon(Icons.arrow_forward, color: context.colors.textSecondary),
         ),
         filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.08),
+        fillColor: context.colors.field,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -583,7 +585,7 @@ class _MessageBox extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: TextStyle(color: context.colors.textPrimary, fontSize: 14),
             ),
           ),
         ],
