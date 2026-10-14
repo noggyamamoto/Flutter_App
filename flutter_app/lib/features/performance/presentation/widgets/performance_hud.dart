@@ -46,7 +46,7 @@ class PhraseProgressBar extends StatelessWidget {
               onTap: onTap == null ? null : () => onTap!(i),
               child: Padding(
                 padding: EdgeInsets.only(right: i == phraseCount - 1 ? 0 : 4, top: 6, bottom: 6),
-                child: _segment(i),
+                child: _segment(context.colors, i),
               ),
             ),
           ),
@@ -54,10 +54,10 @@ class PhraseProgressBar extends StatelessWidget {
     );
   }
 
-  Widget _segment(int i) {
+  Widget _segment(AppColors colors, int i) {
     final score = phraseScores[i];
     final isCurrent = i == currentPhrase;
-    final color = score != null ? FeedbackColors.forScore(score) : AppColors.primary;
+    final color = score != null ? FeedbackColors.forScore(score) : colors.primary;
     final fill = score != null ? 1.0 : (isCurrent ? currentProgress.clamp(0.0, 1.0) : 0.0);
 
     return Semantics(
@@ -65,10 +65,10 @@ class PhraseProgressBar extends StatelessWidget {
       child: Container(
         height: isCurrent ? 8 : 6,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
+          color: colors.subtle,
           borderRadius: BorderRadius.circular(4),
           border: isCurrent && score == null
-              ? Border.all(color: AppColors.primary.withValues(alpha: 0.9), width: 1)
+              ? Border.all(color: colors.primary.withValues(alpha: 0.9), width: 1)
               : null,
         ),
         child: FractionallySizedBox(
@@ -101,7 +101,8 @@ class AccuracyRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? FeedbackColors.forScore(precision) : AppColors.textMuted;
+    final colors = context.colors;
+    final color = active ? FeedbackColors.forScore(precision) : colors.textMuted;
     return SizedBox(
       width: size,
       height: size,
@@ -109,12 +110,12 @@ class AccuracyRing extends StatelessWidget {
         tween: Tween(end: precision.clamp(0, 100) / 100),
         duration: const Duration(milliseconds: 350),
         builder: (context, value, _) => CustomPaint(
-          painter: _RingPainter(value: value, color: color),
+          painter: _RingPainter(value: value, color: color, track: colors.subtle),
           child: Center(
             child: Text(
               active ? '${precision.round()}%' : '--',
               style: TextStyle(
-                color: Colors.white,
+                color: colors.textPrimary,
                 fontSize: size * 0.27,
                 fontWeight: FontWeight.bold,
               ),
@@ -129,8 +130,9 @@ class AccuracyRing extends StatelessWidget {
 class _RingPainter extends CustomPainter {
   final double value;
   final Color color;
+  final Color track;
 
-  _RingPainter({required this.value, required this.color});
+  _RingPainter({required this.value, required this.color, required this.track});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -143,7 +145,7 @@ class _RingPainter extends CustomPainter {
       math.pi * 2,
       false,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.12)
+        ..color = track
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke,
     );
@@ -161,7 +163,8 @@ class _RingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _RingPainter old) => old.value != value || old.color != color;
+  bool shouldRepaint(covariant _RingPainter old) =>
+      old.value != value || old.color != color || old.track != track;
 }
 
 // Indicador de estatística do HUD (valor + legenda).
@@ -180,7 +183,7 @@ class HudStat extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 11, letterSpacing: 0.3),
+          style: TextStyle(color: context.colors.textMuted, fontSize: 11, letterSpacing: 0.3),
         ),
       ],
     );
@@ -196,6 +199,7 @@ class StreakCounter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hot = streak >= 5;
+    final colors = context.colors;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 90),
       transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
@@ -206,13 +210,13 @@ class StreakCounter extends StatelessWidget {
           Icon(
             Icons.local_fire_department_rounded,
             size: 22,
-            color: hot ? const Color(0xFFFF8A3D) : AppColors.textMuted,
+            color: hot ? const Color(0xFFFF8A3D) : colors.textMuted,
           ),
           const SizedBox(width: 2),
           Text(
             '$streak',
             style: TextStyle(
-              color: hot ? Colors.white : AppColors.textSecondary,
+              color: hot ? colors.textPrimary : colors.textSecondary,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -245,6 +249,7 @@ class TempoPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = FeedbackColors.meter(beatsPerBar);
+    final colors = context.colors;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -256,7 +261,7 @@ class TempoPill extends StatelessWidget {
             Text(
               '$bpm',
               style: TextStyle(
-                color: slowedDown ? Colors.amber : Colors.white,
+                color: slowedDown ? Colors.amber : colors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -279,7 +284,7 @@ class TempoPill extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: i == beatInBar
                         ? (i == 1 ? color : color.withValues(alpha: 0.7))
-                        : Colors.white24,
+                        : colors.outline,
                   ),
                 ),
             ],

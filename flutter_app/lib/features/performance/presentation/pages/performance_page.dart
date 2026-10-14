@@ -196,7 +196,7 @@ class _PerformancePageState
       child: Scaffold(
 
         backgroundColor:
-            const Color(0xFF0F0E17),
+            context.colors.background,
 
         body: SafeArea(
 
@@ -215,14 +215,14 @@ class _PerformancePageState
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF1E1B2E),
-          title: const Text(
+          backgroundColor: context.colors.surface,
+          title: Text(
             'Interromper a execução?',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: context.colors.textPrimary),
           ),
-          content: const Text(
+          content: Text(
             'O progresso deste trecho não será salvo.',
-            style: TextStyle(color: Colors.white70),
+            style: TextStyle(color: context.colors.textSecondary),
           ),
           actions: [
             TextButton(
@@ -319,14 +319,14 @@ class _PerformancePageState
               height: 16,
             ),
 
-            const Text(
+            Text(
               'Não foi possível carregar a partitura.',
 
               textAlign:
                   TextAlign.center,
 
               style: TextStyle(
-                color: Colors.white,
+                color: context.colors.textPrimary,
                 fontSize: 18,
               ),
             ),
@@ -342,8 +342,8 @@ class _PerformancePageState
                   TextAlign.center,
 
               style:
-                  const TextStyle(
-                color: Colors.white70,
+                  TextStyle(
+                color: context.colors.textSecondary,
               ),
             ),
 
@@ -373,9 +373,9 @@ class _PerformancePageState
 
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
+              child: Text(
                 'Voltar',
-                style: TextStyle(color: Colors.white70),
+                style: TextStyle(color: context.colors.textSecondary),
               ),
             ),
           ],
@@ -482,7 +482,7 @@ class _PerformancePageState
           IconButton(
             tooltip: 'Sair',
             onPressed: () => Navigator.maybePop(context),
-            icon: const Icon(Icons.close_rounded, color: Colors.white),
+            icon: Icon(Icons.close_rounded, color: context.colors.textPrimary),
           ),
 
           Expanded(
@@ -498,8 +498,8 @@ class _PerformancePageState
                   widget.song.titulo,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: context.colors.textPrimary,
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
                   ),
@@ -510,8 +510,8 @@ class _PerformancePageState
                   ' · ${score.beatsPerBar}/${score.beatType}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
+                  style: TextStyle(
+                    color: context.colors.textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -528,7 +528,7 @@ class _PerformancePageState
               live: _live,
               fallback: state.elapsed,
               prefix: '${state.bpm} BPM · ',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
             ),
             const SizedBox(width: 12),
           ],
@@ -545,7 +545,7 @@ class _PerformancePageState
             IconButton(
               tooltip: 'Configurações',
               onPressed: _openSettings,
-              icon: const Icon(Icons.tune_rounded, color: Colors.white),
+              icon: Icon(Icons.tune_rounded, color: context.colors.textPrimary),
             ),
         ],
       ),
@@ -655,7 +655,7 @@ class _PerformancePageState
             value: _LiveElapsed(
               live: _live,
               fallback: state.elapsed,
-              style: _elapsedStyle,
+              style: _elapsedStyle.copyWith(color: context.colors.textPrimary),
             ),
           ),
         ],
@@ -689,7 +689,7 @@ class _PerformancePageState
               children: [
                 AccuracyRing(precision: state.precision, size: 96, active: active),
                 const SizedBox(height: 6),
-                const Text('Precisão', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                Text('Precisão', style: TextStyle(color: context.colors.textMuted, fontSize: 12)),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -709,7 +709,7 @@ class _PerformancePageState
                       value: _LiveElapsed(
                         live: _live,
                         fallback: state.elapsed,
-                        style: _elapsedStyle,
+                        style: _elapsedStyle.copyWith(color: context.colors.textPrimary),
                       ),
                     ),
                   ],
@@ -775,6 +775,14 @@ class _PerformancePageState
               child: Container(
 
                 color: AppColors.paper,
+
+                // Modo claro: contorno para o papel não se perder no fundo.
+                foregroundDecoration: context.colors.isDark
+                    ? null
+                    : BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: context.colors.border),
+                      ),
 
                 padding: const EdgeInsets.fromLTRB(6, 10, 6, 10),
 
@@ -855,7 +863,7 @@ class _PerformancePageState
     final notifier = ref.read(performanceProvider.notifier);
 
     return Material(
-      color: AppColors.surface,
+      color: context.colors.surface,
       elevation: 8,
       shadowColor: Colors.black54,
       borderRadius: BorderRadius.circular(16),
@@ -863,23 +871,23 @@ class _PerformancePageState
         padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.6)),
+          border: Border.all(color: context.colors.primary.withValues(alpha: 0.6)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.info_outline_rounded, color: AppColors.primary),
+            Icon(Icons.info_outline_rounded, color: context.colors.primary),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 state.message!,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: context.colors.textPrimary, fontSize: 14),
               ),
             ),
             IconButton(
               tooltip: 'Fechar',
               visualDensity: VisualDensity.compact,
               onPressed: notifier.dismissMessage,
-              icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+              icon: Icon(Icons.close_rounded, color: context.colors.textMuted, size: 20),
             ),
           ],
         ),
@@ -897,7 +905,7 @@ class _PerformancePageState
     final color = FeedbackColors.forScore(result.score);
 
     return Container(
-      color: AppColors.background.withValues(alpha: 0.92),
+      color: context.colors.background.withValues(alpha: 0.92),
       alignment: Alignment.center,
       padding: const EdgeInsets.all(20),
       child: SingleChildScrollView(
@@ -909,11 +917,11 @@ class _PerformancePageState
             children: [
               Center(child: AccuracyRing(precision: result.score, size: 88)),
               const SizedBox(height: 14),
-              const Text(
+              Text(
                 'Vamos praticar este trecho!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: context.colors.textPrimary,
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
@@ -924,7 +932,7 @@ class _PerformancePageState
                 '${result.phraseIndex + 1}. A música parou aqui para você '
                 'repetir com calma — cada tentativa conta!',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 14),
               ),
               const SizedBox(height: 16),
               Row(
@@ -946,7 +954,7 @@ class _PerformancePageState
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: context.colors.primary,
                     foregroundColor: Colors.white,
                     shape: const StadiumBorder(),
                   ),
@@ -960,8 +968,8 @@ class _PerformancePageState
                   icon: const Icon(Icons.speed_rounded),
                   label: Text('Repetir mais devagar (${(state.bpm * 0.9).round()} BPM)'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primarySoft,
-                    side: const BorderSide(color: AppColors.border),
+                    foregroundColor: context.colors.primarySoft,
+                    side: BorderSide(color: context.colors.border),
                     shape: const StadiumBorder(),
                   ),
                 ),
@@ -969,9 +977,9 @@ class _PerformancePageState
               const SizedBox(height: 6),
               TextButton(
                 onPressed: () => notifier.finish(completed: false),
-                child: const Text(
+                child: Text(
                   'Encerrar e ver resultado',
-                  style: TextStyle(color: AppColors.textSecondary),
+                  style: TextStyle(color: context.colors.textSecondary),
                 ),
               ),
             ],
@@ -1011,7 +1019,7 @@ class _PerformancePageState
                 ? _buildTempoSuggestion(state)
                 : Text(
                     '${state.notesPlayed} notas tocadas',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+                    style: TextStyle(color: context.colors.textMuted, fontSize: 13),
                   ),
           ),
 
@@ -1026,7 +1034,7 @@ class _PerformancePageState
                 style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: context.colors.primary,
                 foregroundColor: Colors.white,
                 shape: const StadiumBorder(),
                 padding: const EdgeInsets.symmetric(horizontal: 22),
@@ -1054,8 +1062,8 @@ class _PerformancePageState
           child: TextButton(
             onPressed: notifier.acceptTempoSuggestion,
             style: TextButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: AppColors.surface,
+              foregroundColor: context.colors.textPrimary,
+              backgroundColor: context.colors.surface,
               shape: const StadiumBorder(),
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
@@ -1070,7 +1078,7 @@ class _PerformancePageState
           tooltip: 'Dispensar',
           visualDensity: VisualDensity.compact,
           onPressed: notifier.dismissMessage,
-          icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 18),
+          icon: Icon(Icons.close_rounded, color: context.colors.textMuted, size: 18),
         ),
       ],
     );
@@ -1099,9 +1107,9 @@ class _PerformancePageState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: context.colors.surface,
               borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: context.colors.border),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1109,14 +1117,14 @@ class _PerformancePageState
                 IconButton(
                   tooltip: 'Diminuir andamento',
                   onPressed: () => notifier.setBpm(state.bpm - 5),
-                  icon: const Icon(Icons.remove_rounded, color: Colors.white70),
+                  icon: Icon(Icons.remove_rounded, color: context.colors.textSecondary),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Text(
                     '${state.bpm} BPM',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1125,7 +1133,7 @@ class _PerformancePageState
                 IconButton(
                   tooltip: 'Aumentar andamento',
                   onPressed: () => notifier.setBpm(state.bpm + 5),
-                  icon: const Icon(Icons.add_rounded, color: Colors.white70),
+                  icon: Icon(Icons.add_rounded, color: context.colors.textSecondary),
                 ),
               ],
             ),
@@ -1152,7 +1160,7 @@ class _PerformancePageState
                     icon: const Icon(Icons.play_arrow_rounded, size: 28),
 
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: context.colors.primary,
                       foregroundColor: Colors.white,
                       shape: const StadiumBorder(),
                     ),
@@ -1181,9 +1189,9 @@ class _PerformancePageState
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
+                      foregroundColor: context.colors.textPrimary,
                       shape: const StadiumBorder(),
-                      side: const BorderSide(color: AppColors.primary, width: 2),
+                      side: BorderSide(color: context.colors.primary, width: 2),
                     ),
                   ),
           ),
@@ -1369,7 +1377,6 @@ class _PerformancePageState
 
 
 const _elapsedStyle = TextStyle(
-  color: Colors.white,
   fontSize: 20,
   fontWeight: FontWeight.bold,
   fontFeatures: [FontFeature.tabularFigures()],
@@ -1477,7 +1484,7 @@ class _Stat extends StatelessWidget {
           ),
           Text(
             label,
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            style: TextStyle(color: context.colors.textMuted, fontSize: 12),
           ),
         ],
       ),
@@ -1554,7 +1561,7 @@ class _RoundIcon extends StatelessWidget {
       tooltip: tooltip,
       visualDensity: VisualDensity.compact,
       onPressed: onTap,
-      icon: Icon(icon, color: onTap == null ? Colors.white24 : Colors.white),
+      icon: Icon(icon, color: onTap == null ? context.colors.outline : context.colors.textPrimary),
     );
   }
 }
@@ -1573,9 +1580,9 @@ class _Panel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        border: Border.all(color: context.colors.border.withValues(alpha: 0.6)),
       ),
       child: child,
     );

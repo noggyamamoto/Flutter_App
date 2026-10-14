@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 class PerformanceChart extends StatelessWidget {
   final List<double> values;
 
@@ -11,13 +13,13 @@ class PerformanceChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (values.isEmpty) {
-      return const SizedBox(
+      return SizedBox(
         height: 180,
         child: Center(
           child: Text(
             'Sem dados suficientes.',
             style: TextStyle(
-              color: Colors.white70,
+              color: context.colors.textSecondary,
             ),
           ),
         ),

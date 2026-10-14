@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_app/core/theme/app_theme.dart';
 import 'package:flutter_app/features/connection/domain/entities/device.dart';
 import 'package:flutter_app/features/connection/presentation/providers/connection_provider.dart';
 import 'package:flutter_app/features/performance/domain/entities/performance_state.dart';
@@ -38,15 +39,15 @@ class _FixedPerformance extends PerformanceNotifier {
 class _FixedConnection extends ConnectionNotifier {
   @override
   DeviceConnectionState build() => const DeviceConnectionState(
-        status: DeviceConnectionStatus.connected,
-        device: Device(
-          id: 'demo',
-          name: 'PartituraIoT-BBCC',
-          address: '192.168.0.42',
-          port: 54322,
-          firmware: '1.0.0',
-        ),
-      );
+    status: DeviceConnectionStatus.connected,
+    device: Device(
+      id: 'demo',
+      name: 'PartituraIoT-BBCC',
+      address: '192.168.0.42',
+      port: 54322,
+      firmware: '1.0.0',
+    ),
+  );
 }
 
 const _song = Song(
@@ -72,7 +73,9 @@ Future<void> _loadFont(String family, List<String> paths) async {
 
 PerformanceState _runningState() {
   final structure = ScoreAnalyzer().analyze(
-    MusicXmlParser().parse(File('assets/partituras/alecrim.musicxml').readAsStringSync()),
+    MusicXmlParser().parse(
+      File('assets/partituras/alecrim.musicxml').readAsStringSync(),
+    ),
   );
   final notes = structure.notesOfPhrase(0);
   final feedback = <int, NoteFeedback>{};
@@ -138,66 +141,91 @@ void main() {
     'web': const Size(1440, 900),
   };
 
-  for (final entry in sizes.entries) {
-    for (final status in ['pronto', 'execucao', 'sugestao']) {
-      testWidgets('tela de execução – ${entry.key} – $status', (tester) async {
-        tester.view.physicalSize = entry.value * 2;
-        tester.view.devicePixelRatio = 2;
-        addTearDown(tester.view.reset);
+  for (final light in [false, true]) {
+    for (final entry in sizes.entries) {
+      for (final status in ['pronto', 'execucao', 'sugestao']) {
+        final suffix = light ? '_claro' : '';
+        testWidgets(
+          'tela de execução – ${entry.key} – $status${light ? ' – modo claro' : ''}',
+          (tester) async {
+            tester.view.physicalSize = entry.value * 2;
+            tester.view.devicePixelRatio = 2;
+            addTearDown(tester.view.reset);
 
-        final running = _runningState();
-        final state = switch (status) {
-          'pronto' => PerformanceState(
-              status: PerformanceStatus.ready,
-              structure: running.structure,
-              bpm: 100,
-              initialBpm: 100,
-            ),
-          // Trecho instável com ajuste manual (RFA09): a sugestão fica nos
-          // controles e nenhum aviso é desenhado sobre a partitura.
-          'sugestao' => running.copyWith(
-              bpm: 90,
-              suggestedBpm: 81,
-              message: 'aviso que não deve cobrir a partitura',
-            ),
-          _ => running,
-        };
-
-        final key = GlobalKey();
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              performanceProvider.overrideWith(() => _FixedPerformance(state)),
-              connectionProvider.overrideWith(() => _FixedConnection()),
-            ],
-            child: RepaintBoundary(
-              key: key,
-              child: MaterialApp(
-                debugShowCheckedModeBanner: false,
-                theme: ThemeData(fontFamily: 'Roboto', colorSchemeSeed: Colors.deepPurple),
-                home: const PerformancePage(song: _song),
+            final running = _runningState();
+            final state = switch (status) {
+              'pronto' => PerformanceState(
+                status: PerformanceStatus.ready,
+                structure: running.structure,
+                bpm: 100,
+                initialBpm: 100,
               ),
-            ),
-          ),
+              // Trecho instável com ajuste manual (RFA09): a sugestão fica nos
+              // controles e nenhum aviso é desenhado sobre a partitura.
+              'sugestao' => running.copyWith(
+                bpm: 90,
+                suggestedBpm: 81,
+                message: 'aviso que não deve cobrir a partitura',
+              ),
+              _ => running,
+            };
+
+            final key = GlobalKey();
+            await tester.pumpWidget(
+              ProviderScope(
+                overrides: [
+                  performanceProvider.overrideWith(
+                    () => _FixedPerformance(state),
+                  ),
+                  connectionProvider.overrideWith(() => _FixedConnection()),
+                ],
+                child: RepaintBoundary(
+                  key: key,
+                  child: MaterialApp(
+                    debugShowCheckedModeBanner: false,
+                    theme: light
+                        ? AppTheme.light.copyWith(
+                            textTheme: AppTheme.light.textTheme.apply(
+                              fontFamily: 'Roboto',
+                            ),
+                          )
+                        : ThemeData(
+                            fontFamily: 'Roboto',
+                            colorSchemeSeed: Colors.deepPurple,
+                          ),
+                    home: const PerformancePage(song: _song),
+                  ),
+                ),
+              ),
+            );
+            await tester.pump(const Duration(milliseconds: 300));
+            expect(tester.takeException(), isNull);
+
+            if (status == 'sugestao') {
+              expect(
+                find.text('aviso que não deve cobrir a partitura'),
+                findsNothing,
+              );
+              expect(find.text('Reduzir para 81 BPM'), findsOneWidget);
+            }
+
+            if (outDir != null) {
+              await tester.runAsync(() async {
+                final boundary =
+                    key.currentContext!.findRenderObject()!
+                        as RenderRepaintBoundary;
+                final image = await boundary.toImage(pixelRatio: 1);
+                final bytes = await image.toByteData(
+                  format: ui.ImageByteFormat.png,
+                );
+                final out = File('$outDir/${entry.key}_$status$suffix.png')
+                  ..createSync(recursive: true);
+                out.writeAsBytesSync(bytes!.buffer.asUint8List());
+              });
+            }
+          },
         );
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(tester.takeException(), isNull);
-
-        if (status == 'sugestao') {
-          expect(find.text('aviso que não deve cobrir a partitura'), findsNothing);
-          expect(find.text('Reduzir para 81 BPM'), findsOneWidget);
-        }
-
-        if (outDir != null) {
-          await tester.runAsync(() async {
-            final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-            final image = await boundary.toImage(pixelRatio: 1);
-            final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-            final out = File('$outDir/${entry.key}_$status.png')..createSync(recursive: true);
-            out.writeAsBytesSync(bytes!.buffer.asUint8List());
-          });
-        }
-      });
+      }
     }
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../providers/configuration_provider.dart';
 
 // Configuração de preferências do usuário (RFA03 – seção 4.4.2.3 do TCC).
@@ -11,13 +12,14 @@ class ConfigurationPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(configurationProvider);
     final notifier = ref.read(configurationProvider.notifier);
+    final colors = context.colors;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0E17),
+      backgroundColor: colors.background,
 
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F0E17),
-        foregroundColor: Colors.white,
+        backgroundColor: colors.background,
+        foregroundColor: colors.textPrimary,
         elevation: 0,
         title: const Text('Configurações'),
       ),
@@ -29,6 +31,68 @@ class ConfigurationPage extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                const _SectionTitle('Aparência'),
+
+                _Card(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            settings.lightMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                            color: colors.primarySoft,
+                            size: 28,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Tema',
+                                  style: TextStyle(
+                                    color: colors.textPrimary,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'O modo escuro é o padrão do aplicativo. O modo claro '
+                                  'mantém os mesmos tons de violeta sobre fundo claro.',
+                                  style: TextStyle(color: colors.textMuted, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SegmentedButton<bool>(
+                        segments: const [
+                          ButtonSegment(
+                            value: false,
+                            icon: Icon(Icons.dark_mode_outlined),
+                            label: Text('Escuro'),
+                          ),
+                          ButtonSegment(
+                            value: true,
+                            icon: Icon(Icons.light_mode_outlined),
+                            label: Text('Claro'),
+                          ),
+                        ],
+                        selected: {settings.lightMode},
+                        showSelectedIcon: false,
+                        onSelectionChanged: (v) =>
+                            notifier.update(settings.copyWith(lightMode: v.first)),
+                        style: _segmentStyle(colors),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
                 const _SectionTitle('Áudio'),
 
                 _SwitchTile(
@@ -76,18 +140,18 @@ class ConfigurationPage extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Compassos por trecho',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: colors.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
+                      Text(
                         'Trechos menores deixam a leitura mais tranquila.',
-                        style: TextStyle(color: Colors.white54, fontSize: 13),
+                        style: TextStyle(color: colors.textMuted, fontSize: 13),
                       ),
                       const SizedBox(height: 12),
                       SegmentedButton<int>(
@@ -99,13 +163,13 @@ class ConfigurationPage extends ConsumerWidget {
                         selected: {settings.measuresPerPhrase},
                         onSelectionChanged: (v) =>
                             notifier.update(settings.copyWith(measuresPerPhrase: v.first)),
-                        style: _segmentStyle(),
+                        style: _segmentStyle(colors),
                       ),
                       const SizedBox(height: 20),
                       Text(
                         'Tamanho dos símbolos: ${(settings.zoom * 100).round()}%',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: colors.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -115,7 +179,8 @@ class ConfigurationPage extends ConsumerWidget {
                         min: 1.0,
                         max: 1.6,
                         divisions: 6,
-                        activeColor: const Color(0xFF9B6DDA),
+                        activeColor: colors.primarySoft,
+                        inactiveColor: colors.subtle,
                         label: '${(settings.zoom * 100).round()}%',
                         onChanged: (v) => notifier.update(settings.copyWith(zoom: v)),
                       ),
@@ -124,10 +189,10 @@ class ConfigurationPage extends ConsumerWidget {
                 ),
 
                 const SizedBox(height: 20),
-                const Text(
+                Text(
                   'Dica: o microfone reconhece uma nota por vez. Toque a melodia '
                   '(pauta superior); as notas em cinza são o acompanhamento.',
-                  style: TextStyle(color: Colors.white54, fontSize: 13),
+                  style: TextStyle(color: colors.textMuted, fontSize: 13),
                 ),
               ],
             ),
@@ -137,17 +202,17 @@ class ConfigurationPage extends ConsumerWidget {
     );
   }
 
-  ButtonStyle _segmentStyle() {
+  ButtonStyle _segmentStyle(AppColors colors) {
     return ButtonStyle(
       foregroundColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? Colors.white : Colors.white70,
+        (states) => states.contains(WidgetState.selected) ? Colors.white : colors.textSecondary,
       ),
       backgroundColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
             ? Colors.deepPurple
             : Colors.transparent,
       ),
-      side: const WidgetStatePropertyAll(BorderSide(color: Color(0xFF39374A))),
+      side: WidgetStatePropertyAll(BorderSide(color: colors.border)),
     );
   }
 }
@@ -163,8 +228,8 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10, top: 4),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: context.colors.textPrimary,
           fontSize: 21,
           fontWeight: FontWeight.bold,
         ),
@@ -184,9 +249,9 @@ class _Card extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF232136),
+        color: context.colors.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF39374A)),
+        border: Border.all(color: context.colors.border),
       ),
       child: child,
     );
@@ -210,10 +275,12 @@ class _SwitchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+
     return _Card(
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF9B6DDA), size: 28),
+          Icon(icon, color: colors.primarySoft, size: 28),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -221,8 +288,8 @@ class _SwitchTile extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: colors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -230,7 +297,7 @@ class _SwitchTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                  style: TextStyle(color: colors.textMuted, fontSize: 13),
                 ),
               ],
             ),

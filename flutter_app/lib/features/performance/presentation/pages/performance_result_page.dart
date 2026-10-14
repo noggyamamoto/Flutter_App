@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 import '../../../history/domain/entities/performance_history.dart';
@@ -76,13 +77,13 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
     // Se não houver usuário logado,
     // não conseguimos buscar o histórico.
     if (user == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0F0E17),
+      return Scaffold(
+        backgroundColor: context.colors.background,
 
         body: Center(
           child: Text(
             'Usuário não autenticado.',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: context.colors.textPrimary),
           ),
         ),
       );
@@ -99,7 +100,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
     final historyAsync = ref.watch(historyProvider(historyParams));
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0E17),
+      backgroundColor: context.colors.background,
 
       body: SafeArea(
         child: SingleChildScrollView(
@@ -114,11 +115,11 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
 
                 children: [
                   // Título da página.
-                  const Text(
+                  Text(
                     'Resumo da performance',
 
                     style: TextStyle(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
                     ),
@@ -249,7 +250,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: selected ? Colors.deepPurple : Colors.white24,
+              color: selected ? Colors.deepPurple : context.colors.outline,
 
               width: 2,
             ),
@@ -262,7 +263,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
           textAlign: TextAlign.center,
 
           style: TextStyle(
-            color: selected ? Colors.white : Colors.white54,
+            color: selected ? context.colors.textPrimary : context.colors.textMuted,
 
             fontWeight: FontWeight.bold,
           ),
@@ -280,11 +281,11 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
 
       children: [
-        const Text(
+        Text(
           'Notas executadas',
 
           style: TextStyle(
-            color: Colors.white,
+            color: context.colors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -330,11 +331,11 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
 
       children: [
-        const Text(
+        Text(
           'Histórico de execuções',
 
           style: TextStyle(
-            color: Colors.white,
+            color: context.colors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -378,7 +379,7 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
                   margin: const EdgeInsets.only(bottom: 16),
 
                   decoration: BoxDecoration(
-                    color: const Color(0xFF191827),
+                    color: context.colors.surfaceLow,
                     borderRadius: BorderRadius.circular(16),
                   ),
 
@@ -386,10 +387,10 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Evolução da pontuação',
                               style: TextStyle(
-                                color: Colors.white70,
+                                color: context.colors.textSecondary,
                                 fontSize: 13,
                               ),
                             ),
@@ -401,8 +402,8 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
                           'O gráfico de evolução aparece a partir da '
                           '$minimum.ª execução desta música. '
                           'Faltam ${minimum - history.length}.',
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: context.colors.textSecondary,
                             fontSize: 14,
                           ),
                         ),
@@ -453,8 +454,8 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
                     widget.newTrophies.length == 1
                         ? 'Novo troféu conquistado!'
                         : '${widget.newTrophies.length} novos troféus!',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -464,13 +465,13 @@ class _PerformanceResultPageState extends ConsumerState<PerformanceResultPage> {
 
                   Text(
                     widget.newTrophies.map((t) => t.titulo).join(', '),
-                    style: const TextStyle(color: Colors.white70),
+                    style: TextStyle(color: context.colors.textSecondary),
                   ),
                 ],
               ),
             ),
 
-            const Icon(Icons.chevron_right, color: Colors.white54),
+            Icon(Icons.chevron_right, color: context.colors.textMuted),
           ],
         ),
       ),
@@ -506,7 +507,7 @@ class _Legend extends StatelessWidget {
         Text(
           label,
 
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
+          style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
         ),
       ],
     );

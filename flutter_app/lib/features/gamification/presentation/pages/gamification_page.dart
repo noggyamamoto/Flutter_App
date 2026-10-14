@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/entities/trophy_progress.dart';
 import '../providers/gamification_provider.dart';
@@ -30,10 +32,10 @@ class GamificationPage extends ConsumerWidget {
     final user = ref.watch(authProvider).user;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0E17),
+      backgroundColor: context.colors.background,
 
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F0E17),
+        backgroundColor: context.colors.background,
         foregroundColor: Colors.white,
         elevation: 0,
         title: const Text('Troféus'),
@@ -41,10 +43,10 @@ class GamificationPage extends ConsumerWidget {
 
       body: SafeArea(
         child: user == null
-            ? const Center(
+            ? Center(
                 child: Text(
                   'Usuário não autenticado.',
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(color: context.colors.textSecondary),
                 ),
               )
             : ref.watch(trophyProgressProvider(user.id)).when(
@@ -55,7 +57,7 @@ class GamificationPage extends ConsumerWidget {
                       child: Text(
                         'Erro ao carregar troféus: $error',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white70),
+                        style: TextStyle(color: context.colors.textSecondary),
                       ),
                     ),
                   ),
@@ -83,7 +85,7 @@ class _TrophyGrid extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1922),
+                color: context.colors.surfaceLow,
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Row(
@@ -96,8 +98,8 @@ class _TrophyGrid extends StatelessWidget {
                       children: [
                         Text(
                           '$unlocked de ${trophies.length} troféus',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: context.colors.textPrimary,
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
@@ -108,7 +110,7 @@ class _TrophyGrid extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: trophies.isEmpty ? 0 : unlocked / trophies.length,
                             minHeight: 8,
-                            backgroundColor: Colors.white12,
+                            backgroundColor: context.colors.subtle,
                             color: Colors.deepPurple,
                           ),
                         ),
@@ -155,10 +157,10 @@ class TrophyCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF232136),
+        color: context.colors.card,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: unlocked ? Colors.amber.withValues(alpha: 0.7) : const Color(0xFF39374A),
+          color: unlocked ? Colors.amber.withValues(alpha: 0.7) : context.colors.border,
         ),
       ),
       child: Column(
@@ -168,11 +170,11 @@ class TrophyCard extends StatelessWidget {
             height: 64,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: unlocked ? Colors.amber.withValues(alpha: 0.18) : Colors.white10,
+              color: unlocked ? Colors.amber.withValues(alpha: 0.18) : context.colors.subtle,
             ),
             child: Icon(
               unlocked ? TrophyIcons.of(trophy.icone) : Icons.lock_outline,
-              color: unlocked ? Colors.amber : Colors.white38,
+              color: unlocked ? Colors.amber : context.colors.textMuted,
               size: 34,
             ),
           ),
@@ -183,7 +185,7 @@ class TrophyCard extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: unlocked ? Colors.white : Colors.white70,
+              color: unlocked ? context.colors.textPrimary : context.colors.textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.bold,
             ),
@@ -194,14 +196,14 @@ class TrophyCard extends StatelessWidget {
               trophy.descricao,
               textAlign: TextAlign.center,
               overflow: TextOverflow.fade,
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+              style: TextStyle(color: context.colors.textMuted, fontSize: 12),
             ),
           ),
           if (unlocked && date != null)
             Text(
               'Conquistado em ${date.day.toString().padLeft(2, '0')}/'
               '${date.month.toString().padLeft(2, '0')}/${date.year}',
-              style: const TextStyle(color: Colors.amber, fontSize: 11),
+              style: TextStyle(color: context.colors.goldText, fontSize: 11),
             )
           else
             ClipRRect(
@@ -209,8 +211,8 @@ class TrophyCard extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress.progress,
                 minHeight: 6,
-                backgroundColor: Colors.white12,
-                color: const Color(0xFF9B6DDA),
+                backgroundColor: context.colors.subtle,
+                color: context.colors.primarySoft,
               ),
             ),
         ],

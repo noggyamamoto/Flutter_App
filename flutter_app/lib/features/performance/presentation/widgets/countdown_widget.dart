@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import 'feedback_colors.dart';
 
 // Contagem de entrada: dois compassos vazios no andamento da música,
@@ -25,15 +26,15 @@ class CountdownWidget extends StatelessWidget {
     final color = FeedbackColors.meter(beatsPerBar, countIn: true);
 
     return Container(
-      color: const Color(0xFF0F0E17).withValues(alpha: 0.82),
+      color: context.colors.background.withValues(alpha: 0.82),
       alignment: Alignment.center,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             'Prepare-se!',
             style: TextStyle(
-              color: Colors.white70,
+              color: context.colors.textSecondary,
               fontSize: 20,
             ),
           ),
@@ -51,7 +52,7 @@ class CountdownWidget extends StatelessWidget {
             child: Text(
               '$beat',
               style: TextStyle(
-                color: beat == 1 ? color : Colors.white,
+                color: beat == 1 ? color : context.colors.textPrimary,
                 fontSize: 96,
                 fontWeight: FontWeight.bold,
               ),
@@ -71,7 +72,7 @@ class CountdownWidget extends StatelessWidget {
                   height: i == beat ? 22 : 14,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: i <= beat ? color : Colors.white24,
+                    color: i <= beat ? color : context.colors.outline,
                   ),
                 ),
             ],
@@ -81,8 +82,8 @@ class CountdownWidget extends StatelessWidget {
 
           Text(
             'Compasso $bar de $totalBars',
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: context.colors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),

@@ -48,13 +48,14 @@ class PerformanceScoreCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = FeedbackColors.forScore(precision);
     final starCount = stars(precision);
+    final colors = context.colors;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+        border: Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),
       child: Column(
         children: [
@@ -67,7 +68,7 @@ class PerformanceScoreCard extends StatelessWidget {
                   child: Icon(
                     i < starCount ? Icons.star_rounded : Icons.star_outline_rounded,
                     size: i == 1 ? 52 : 40,
-                    color: i < starCount ? const Color(0xFFFFC233) : Colors.white24,
+                    color: i < starCount ? AppColors.gold : colors.outline,
                   ),
                 ),
             ],
@@ -75,7 +76,7 @@ class PerformanceScoreCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             headline(precision),
-            style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+            style: TextStyle(color: colors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 18),
           Row(
@@ -90,7 +91,7 @@ class PerformanceScoreCard extends StatelessWidget {
                 label: 'Notas tocadas',
                 value: Text(
                   '$notesPlayed',
-                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold),
                 ),
               ),
               HudStat(
@@ -105,7 +106,7 @@ class PerformanceScoreCard extends StatelessWidget {
                   label: 'Maior sequência',
                   value: Text(
                     '$bestStreak',
-                    style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: colors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold),
                   ),
                 ),
             ],

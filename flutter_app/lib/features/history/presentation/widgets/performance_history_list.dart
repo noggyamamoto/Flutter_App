@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
+
 import '../../domain/entities/performance_history.dart';
 
 class PerformanceHistoryList
@@ -22,7 +24,7 @@ class PerformanceHistoryList
     // nenhuma execução dessa música.
     if (history.isEmpty) {
 
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.all(24),
 
         child: Center(
@@ -31,7 +33,7 @@ class PerformanceHistoryList
             textAlign: TextAlign.center,
 
             style: TextStyle(
-              color: Colors.white60,
+              color: context.colors.textMuted,
               fontSize: 14,
             ),
           ),
@@ -90,7 +92,7 @@ class PerformanceHistoryList
           decoration: BoxDecoration(
 
             color:
-                const Color(0xFF191827),
+                context.colors.surfaceLow,
 
             borderRadius:
                 BorderRadius.circular(16),
@@ -121,8 +123,8 @@ class PerformanceHistoryList
                     // Data.
                     Text(
                       dateText,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: context.colors.textPrimary,
                         fontWeight:
                             FontWeight.bold,
                       ),
@@ -135,8 +137,8 @@ class PerformanceHistoryList
                     // Horário.
                     Text(
                       timeText,
-                      style: const TextStyle(
-                        color: Colors.white54,
+                      style: TextStyle(
+                        color: context.colors.textMuted,
                         fontSize: 12,
                       ),
                     ),
@@ -148,8 +150,8 @@ class PerformanceHistoryList
                     // BPM.
                     Text(
                       'BPM: ${performance.bpm}',
-                      style: const TextStyle(
-                        color: Colors.white54,
+                      style: TextStyle(
+                        color: context.colors.textMuted,
                         fontSize: 12,
                       ),
                     ),
