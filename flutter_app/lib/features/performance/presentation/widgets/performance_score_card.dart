@@ -9,7 +9,8 @@ import 'performance_hud.dart';
 // conceito (A+ a F) e maior sequência de acertos.
 class PerformanceScoreCard extends StatelessWidget {
   final double precision;
-  final int notesPlayed;
+  // Execuções antigas podem não ter a contagem.
+  final int? notesPlayed;
   final int? bestStreak;
 
   const PerformanceScoreCard({
@@ -90,7 +91,7 @@ class PerformanceScoreCard extends StatelessWidget {
               HudStat(
                 label: 'Notas tocadas',
                 value: Text(
-                  '$notesPlayed',
+                  notesPlayed != null ? '$notesPlayed' : '--',
                   style: TextStyle(color: colors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold),
                 ),
               ),

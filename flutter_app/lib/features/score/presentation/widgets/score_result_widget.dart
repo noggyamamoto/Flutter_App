@@ -39,7 +39,12 @@ class ScoreResultWidget extends StatelessWidget {
             spacing: 18,
             runSpacing: 8,
             children: [
-              _Info(icon: Icons.check_circle_outline, text: '${result.notesCorrect} de ${result.notesExpected} corretas'),
+              _Info(
+                icon: Icons.check_circle_outline,
+                text: result.notesExpected > 0
+                    ? '${result.notesCorrect} de ${result.notesExpected} corretas'
+                    : '${result.notesCorrect} corretas',
+              ),
               _Info(icon: Icons.add_circle_outline, text: '${result.extraNotes} extras'),
               _Info(
                 icon: result.completed ? Icons.flag : Icons.pause_circle_outline,

@@ -4,11 +4,12 @@ Aplicativo Flutter do TCC **Sistema de Processamento de Áudio com Feedback em T
 
 O aluno toca a partitura exibida no app; o [dispositivo embarcado](https://github.com/noggyamamoto/firmware_I2S) (ESP32 + microfone INMP441) identifica as notas tocadas e as envia ao app, que compara cada nota com a partitura **MusicXML** e mostra o resultado na hora: verde para acerto, amarelo para aproximado e vermelho para erro, como nos aplicativos de prática musical (Simply Piano, Yousician, Meludia).
 
-### Novidades desta versão: modo claro
+### Novidades desta versão: modo claro e evolução detalhada
 
 | Feature (commit) | O que mudou |
 |---|---|
 | **Modo claro** (`modo-claro`) | Em **Configurações › Aparência**, o tema **Escuro** (padrão, identidade visual do protótipo) ou **Claro**. O modo claro usa os mesmos violetas (`#7C5CFA`, `#673AB7`) sobre fundo lavanda `#F4F2FB`, cartões brancos com borda lilás e texto na cor da tinta da partitura (`#15131F`); as cores do feedback (verde/amarelo/vermelho), do metrônomo e o papel da partitura são iguais nos dois modos. A troca vale para o app inteiro na hora e fica salva no aparelho. As cores das telas vêm do tema (`AppColors` como `ThemeExtension`, `context.colors`), em vez de valores fixos em cada tela |
+| **Evolução detalhada e execuções anteriores** (`evolucao-detalhada`) | A aba **Evolução** traz um resumo da música (melhor pontuação e conceito, média das últimas execuções comparada com as anteriores e tendência, total de execuções e concluídas, maior andamento), um gráfico mais legível (eixo de 0 a 100 %, faixas Ótimo/Bom/Praticar nas cores do feedback, média móvel, melhor e última execução destacadas, toque/arraste para ver cada execução, filtros Geral/Altura/Ritmo e últimas 10/30/todas; liberado na 10ª execução – RFA11) e cartões das execuções com número, data, conceito, conclusão, BPM, altura, ritmo e variação para a anterior. **Tocar numa execução** (na lista ou em "Ver execução" no gráfico) abre a **mesma tela do fim da execução** com os dados daquela execução: estrelas, precisão, conceito, maior sequência, altura/ritmo por trecho e as notas coloridas sobre a partitura. Para isso, cada execução salva também os trechos, o resultado de cada nota, a maior sequência e o tamanho dos trechos |
 
 ### Sem atraso no início, no meio da execução e no feedback
 
@@ -104,7 +105,7 @@ flowchart LR
 | **RFA08** / RU11 – Interrupção < 50 % | Tela de incentivo com "Repetir trecho" | `performance_page.dart` |
 | **RFA09** / RU12 – Redução de BPM | Sugestão ou ajuste automático de −10 % | `performance_provider.dart` |
 | **RFA10** / RU13 / RU15 – Pontuação e troféus | Precisão, estrelas, conceito (A+ a F) e troféus | `performance_result_page.dart`, `features/gamification` |
-| **RFA11** / RU14 – Evolução | Gráfico de linha a partir da 10ª execução da mesma música | `performance_chart.dart` |
+| **RFA11** / RU14 – Evolução | Resumo do progresso, gráfico de linha (a partir da 10ª execução da mesma música) e execuções anteriores, que reabrem a tela de resultado | `evolution_panel.dart`, `performance_chart.dart`, `past_performance_page.dart` |
 | RU16 / RU17 – Reiniciar e desconectar | Tocar novamente e desconexão segura | resultado / conexão |
 | **RNFA01** – Portabilidade | Android, iOS, Web, Windows, macOS e Linux com layout responsivo | todo o app |
 | **RNFA02** – Comunicação assíncrona | WebSocket na web e UDP nativo, sem bloquear a interface | `connection/data/transport` |
@@ -195,7 +196,7 @@ flutter_app/
 | `core/theme` | Cores do app por tema (`context.colors`) e temas escuro/claro | `AppColors`, `AppTheme` |
 | `score` | Leitura do MusicXML, frases, melodia avaliada, avaliação e renderização | `MusicXmlParser`, `ScoreAnalyzer`, `PerformanceEvaluator`, `ScoreEngraver` |
 | `performance` | Execução em tempo real, HUD, feedback, áudio guia, resultado | `PerformanceNotifier`, `PerformancePage`, `ScoreDisplay` |
-| `history` | Execuções salvas e evolução | `HistoryRepository`, `PerformanceChart` |
+| `history` | Execuções salvas, evolução e reabertura de uma execução | `HistoryRepository`, `EvolutionStats`, `EvolutionPanel`, `PastPerformancePage`, `PerformanceChart` |
 | `gamification` | Troféus e progresso | `CheckTrophies`, `GamificationPage` |
 
 ### 4.4 Diagramas de classes
@@ -754,6 +755,8 @@ A tela de execução segue o padrão dos aplicativos de prática musical, manten
 | Andamento reduzido (RU12/RFA09) | Com ajuste automático, o BPM do HUD fica âmbar com uma seta ↓ quando o trecho mais lento começa; no ajuste manual, o botão "Reduzir para N BPM" substitui o contador de notas nos controles, abaixo da partitura |
 | Trecho reprovado | Tela de incentivo com anel da pontuação, altura, ritmo, notas perdidas e "Repetir trecho" |
 | Resultado final | Estrelas, mensagem de incentivo, precisão, notas tocadas, conceito (A+ a F), maior sequência, altura/ritmo por trecho e evolução |
+| Aba Evolução | Resumo (melhor pontuação, média recente × anteriores com tendência, execuções concluídas, maior andamento), gráfico com faixas de desempenho, média móvel, seleção por toque e filtros (Geral/Altura/Ritmo, últimas 10/30/todas) e cartões das execuções |
+| Execução anterior | Tocar numa execução abre a mesma tela do resultado com os dados salvos dela (notas coloridas sobre a partitura, trechos, maior sequência); "Voltar" retorna ao resumo da execução recém-terminada |
 
 | Tamanho de tela | Disposição |
 |---|---|
@@ -840,6 +843,7 @@ flutter test
 | Descoberta | `test/connection/device_discovery_test.dart` | Varredura no navegador, prioridade do último endereço, histórico |
 | Sincronismo | `test/performance/performance_timeline_sync_test.dart`, `test/connection/session_sync_test.dart` | BPM inteiro do metrônomo na linha do tempo (4/4, 6/8, 2/2), batida do metrônomo no instante (contagem, mudança de andamento, após o fim), `session_id` mantido no reenvio, batidas antigas descartadas, `at_beat` do `SET_TEMPO` |
 | Telas | `test/performance/performance_screens_test.dart` | Tela de execução em celular, celular deitado, tablet e web, nos modos escuro e claro: pronta, em execução e com sugestão de BPM (nada sobre a partitura) |
+| Evolução | `test/history/evolution_test.dart` | Trechos e resultado de cada nota salvos e lidos do Firestore, execução antiga sem detalhes, resumo (melhor, médias, tendência, número da execução, maior BPM), média móvel; aba Evolução nos modos escuro e claro (resumo, gráfico, seleção, filtros de série e período, aviso antes da 10ª execução) e execução anterior aberta na mesma tela do resultado |
 | Modo claro | `test/theme/light_mode_test.dart` | Escuro como padrão, modo claro salvo usado na abertura, troca pelas Configurações (tema do app inteiro e preferência salva), contraste do texto nas duas paletas |
 | Widgets | `test/widget_test.dart` | Partitura em todas as frases/larguras, cursor ao vivo sem reconstruir a partitura, metrônomo visual aceso no quadro da batida, conexão, HUD e tela de incentivo |
 | Integração UDP | `test/connection/udp_device_test.dart` | Protocolo contra o dispositivo falso do firmware |
@@ -850,6 +854,7 @@ Capturas para conferência visual:
 ```bash
 SCORE_RENDER_DIR=build/score_renders flutter test test/score/score_render_test.dart
 SCREENSHOT_DIR=build/screens flutter test test/performance/performance_screens_test.dart
+SCREENSHOT_DIR=build/screens flutter test test/history/evolution_test.dart
 ```
 
 Integração com o dispositivo falso (repositório `firmware_I2S`):
@@ -871,7 +876,7 @@ flutter test --platform chrome --dart-define=WS_DEVICE=true test/connection/webs
 |---|---|
 | `usuarios/{uid}` | `id`, `nome`, `email`, `dataCriacao` e `trofeus` — mapa `idTrofeu → {idTrofeu, idPartitura, dataConquista}` com as conquistas |
 | `partituras` | `titulo`, `compositor`, `nivelDificuldade` (fácil/médio/difícil), `bpmPadrao`, `arquivoMidi`, `arquivoPartitura` (opcional) |
-| `execucoes` | `idUsuario`, `idPartitura`, `dataHora`, `status`, `bpmInicial`, `bpmFinal`, `pontuacaoFinal`, `pontuacaoAltura`, `pontuacaoRitmo`, `notasTocadas`, `notasCorretas` |
+| `execucoes` | `idUsuario`, `idPartitura`, `dataHora`, `status`, `bpmInicial`, `bpmFinal`, `pontuacaoFinal`, `pontuacaoAltura`, `pontuacaoRitmo`, `notasTocadas`, `notasCorretas`, `notasEsperadas`, `notasExtras`, `maiorSequencia`, `compassosPorTrecho`, `trechos` (altura, ritmo, pontuação e notas de cada trecho), `resultadoNotas` (id da nota → `correct`/`approximate`/`incorrect`/`missed`) |
 | `trofeus` (opcional) | `titulo`, `descricao`, `icone`, `criterio`, `meta` — sem regra de leitura (ou vazio), o app usa o catálogo padrão |
 
 As regras de segurança do projeto estão em [`flutter_app/firestore.rules`](flutter_app/firestore.rules) e o app foi ajustado a elas:

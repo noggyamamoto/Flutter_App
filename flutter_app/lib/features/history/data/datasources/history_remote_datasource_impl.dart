@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'history_remote_datasource.dart';
 import '../models/performance_history_model.dart';
+import '../../../score/domain/entities/note_comparison.dart';
+import '../../../score/domain/entities/score_result.dart';
 
 class HistoryRemoteDataSourceImpl
     implements HistoryRemoteDataSource {
@@ -82,6 +84,12 @@ class HistoryRemoteDataSourceImpl
     int? bpmFinal,
     int? notasTocadas,
     int? notasCorretas,
+    int? notasEsperadas,
+    int? notasExtras,
+    int? maiorSequencia,
+    int? compassosPorTrecho,
+    List<PhraseResult>? trechos,
+    Map<int, NoteFeedback>? resultadoNotas,
   }) async {
 
     // Cria um novo documento dentro de execucoes.
@@ -114,6 +122,17 @@ class HistoryRemoteDataSourceImpl
       'bpmFinal': ?bpmFinal,
       'notasTocadas': ?notasTocadas,
       'notasCorretas': ?notasCorretas,
+      'notasEsperadas': ?notasEsperadas,
+      'notasExtras': ?notasExtras,
+      'maiorSequencia': ?maiorSequencia,
+      'compassosPorTrecho': ?compassosPorTrecho,
+
+      // Trechos e resultado de cada nota: a execução pode ser reaberta
+      // depois com a mesma tela do fim da execução.
+      if (trechos != null)
+        'trechos': trechos.map(PerformanceHistoryModel.phraseToMap).toList(),
+      if (resultadoNotas != null)
+        'resultadoNotas': PerformanceHistoryModel.feedbackToMap(resultadoNotas),
     });
 
     // Retorna o ID criado pelo Firestore.

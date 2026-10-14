@@ -1252,13 +1252,16 @@ class _PerformancePageState
 
     var newTrophies = <Trophy>[];
 
+    // ID da execução salva (destacada na aba Evolução).
+    String? executionId;
+
     // Salva somente execuções em que o aluno chegou a tocar.
     if (user != null && result != null && result.notesExpected > 0) {
 
       try {
 
         // Salva a execução no Firestore.
-        await ref
+        executionId = await ref
             .read(
               performanceProvider
                   .notifier,
@@ -1369,6 +1372,9 @@ class _PerformancePageState
 
           bestStreak:
               state.bestStreak,
+
+          executionId:
+              executionId,
         ),
       ),
     );
