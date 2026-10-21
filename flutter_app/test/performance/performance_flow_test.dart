@@ -45,7 +45,10 @@ class _SilentAudio extends PerformanceAudio {
   Future<void> preload(Uint8List wav) async => preloaded++;
 
   @override
-  Future<void> play(Uint8List wav, {Duration position = Duration.zero}) async => played++;
+  Future<bool> play(Uint8List wav, {Duration position = Duration.zero}) async {
+    played++;
+    return true;
+  }
 
   @override
   Future<void> stop() async {}
@@ -104,7 +107,7 @@ class _RecordingAudio extends _SilentAudio {
   }
 
   @override
-  Future<void> play(Uint8List wav, {Duration position = Duration.zero}) async {
+  Future<bool> play(Uint8List wav, {Duration position = Duration.zero}) async {
     if (identical(wav, _ready)) playedPreloaded++;
     _ready = null;
     played++;
@@ -113,6 +116,7 @@ class _RecordingAudio extends _SilentAudio {
     // O player começa `lagMs` depois (tempo de partida / saída de áudio).
     _from = position - Duration(milliseconds: lagMs);
     _since = Stopwatch()..start();
+    return true;
   }
 }
 
@@ -273,6 +277,8 @@ void main() {
 
     // Console: notas esperadas e captadas com nome e figura.
     expect(log.first, startsWith('[Execução] Início'));
+    // Som do app: contagem do modo demonstração tocando.
+    expect(log.where((l) => l.startsWith('[Áudio   ]')).single, endsWith('→ tocando'));
     expect(log.where((l) => l.startsWith('[Esperado]')), hasLength(result.notesExpected));
     expect(log.any((l) => l.startsWith('[Captado ]') && l.contains('Perfeito!')), isTrue);
     expect(log.any((l) => l.contains('semínima') || l.contains('colcheia')), isTrue);

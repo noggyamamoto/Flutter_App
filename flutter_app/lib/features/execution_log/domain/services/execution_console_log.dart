@@ -40,6 +40,24 @@ class ExecutionConsoleLog {
         'Tempos no relógio do dispositivo; a música começa em t=$countInMs ms.');
   }
 
+  // Som do app na execução: o que foi pedido nas Configurações e se o
+  // navegador (ou o celular) começou a tocar.
+  void audio({required bool metronome, required bool guide, required bool playing, Object? error}) {
+    final options = 'metrônomo sonoro ${metronome ? 'ligado' : 'desligado'}, '
+        'música guia ${guide ? 'ligada' : 'desligada'}';
+    final String outcome;
+    if (playing) {
+      outcome = 'tocando';
+    } else if (error != null) {
+      outcome = 'NÃO TOCOU: $error';
+    } else if (metronome || guide) {
+      outcome = 'NÃO TOCOU: o áudio não ficou pronto';
+    } else {
+      outcome = 'sem som do app (ligue em Configurações > Áudio)';
+    }
+    _sink('[Áudio   ] $options → $outcome');
+  }
+
   void expected(ExpectedNote note, {required int onsetMs, required int durationMs}) {
     final figure = NoteNaming.figure(note.durationBeats, tolerance: 0.05);
     _sink('[Esperado] #${_col('${note.index}', 4)} ${_col(NoteNaming.pitch(note.midi), 4)} '

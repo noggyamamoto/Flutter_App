@@ -25,6 +25,21 @@ void main() {
     expect(NoteNaming.figure(1 / 3, tolerance: 0.05).exact, isFalse);
   });
 
+  test('linha do som do app', () {
+    final lines = <String>[];
+    ExecutionConsoleLog(lines.add)
+      ..audio(metronome: true, guide: false, playing: true)
+      ..audio(metronome: true, guide: true, playing: false, error: 'NotAllowedError')
+      ..audio(metronome: true, guide: false, playing: false)
+      ..audio(metronome: false, guide: false, playing: false);
+    expect(lines, [
+      '[Áudio   ] metrônomo sonoro ligado, música guia desligada → tocando',
+      '[Áudio   ] metrônomo sonoro ligado, música guia ligada → NÃO TOCOU: NotAllowedError',
+      '[Áudio   ] metrônomo sonoro ligado, música guia desligada → NÃO TOCOU: o áudio não ficou pronto',
+      '[Áudio   ] metrônomo sonoro desligado, música guia desligada → sem som do app (ligue em Configurações > Áudio)',
+    ]);
+  });
+
   test('linhas de esperado, captado e solta', () {
     final lines = <String>[];
     final log = ExecutionConsoleLog(lines.add);

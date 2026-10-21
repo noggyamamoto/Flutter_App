@@ -78,11 +78,15 @@ class PerformanceAudio {
     }
   }
 
+  // Erro da última tentativa de tocar (null se começou a tocar).
+  Object? lastError;
+
   // `position`: começa a tocar a partir deste ponto do áudio (mantém o
   // metrônomo alinhado ao relógio da sessão quando o áudio começa depois
-  // do instante em que deveria).
-  Future<void> play(Uint8List wav, {Duration position = Duration.zero}) async {
-    if (_disposed) return;
+  // do instante em que deveria). Devolve se o áudio começou a tocar.
+  Future<bool> play(Uint8List wav, {Duration position = Duration.zero}) async {
+    if (_disposed) return false;
+    lastError = null;
     try {
       if (identical(wav, _preloaded)) {
         // Troca de player antes de qualquer espera: uma nova pré-carga já
@@ -98,7 +102,7 @@ class PerformanceAudio {
           if (position > _seekThreshold) await player.seek(position);
           await player.resume();
           await _players[previous]?.stop();
-          return;
+          return true;
         }
       }
 
@@ -110,8 +114,11 @@ class PerformanceAudio {
       _sources[_active] = source;
       await player.play(source, position: position > Duration.zero ? position : null);
       if (old != null) releaseWavSource(old);
+      return true;
     } catch (e) {
+      lastError = e;
       debugPrint('Falha ao reproduzir áudio: $e');
+      return false;
     }
   }
 

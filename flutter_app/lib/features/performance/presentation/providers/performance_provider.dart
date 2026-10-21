@@ -484,9 +484,22 @@ class PerformanceNotifier
     // Áudio da execução (contagem de entrada sonora – RU07 – e música) a
     // partir do ponto da sessão em que está; o alinhamento às batidas do
     // dispositivo é corrigido assim que elas chegam (_checkAudioAlignment).
-    if (sessionAudio != null && state.status == PerformanceStatus.countdown) {
+    final audioLog = _log;
+    void logAudio({required bool playing, Object? error}) => audioLog?.audio(
+          metronome: _settings.metronomeSound,
+          guide: _settings.guideAudio,
+          playing: playing,
+          error: error,
+        );
+
+    final audio = _audio;
+    if (sessionAudio != null && audio != null && state.status == PerformanceStatus.countdown) {
       _audioBaseMs = sessionAudio.baseMs;
-      _audio?.play(sessionAudio.wav, position: Duration(milliseconds: max(0, _nowMs)));
+      audio
+          .play(sessionAudio.wav, position: Duration(milliseconds: max(0, _nowMs)))
+          .then((ok) => logAudio(playing: ok, error: audio.lastError));
+    } else if (state.status == PerformanceStatus.countdown) {
+      logAudio(playing: false);
     }
 
     // Modo demonstração: o "aluno virtual" toca a partitura.
