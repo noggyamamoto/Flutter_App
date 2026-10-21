@@ -4,7 +4,9 @@ import 'dart:io';
 
 import 'package:flutter_app/features/score/data/datasources/score_local_datasource.dart';
 import 'package:flutter_app/features/score/data/repositories/score_repository_impl.dart';
+import 'package:flutter_app/features/score/domain/entities/musical_score.dart';
 import 'package:flutter_app/features/score/domain/services/musicxml_parser.dart';
+import 'package:flutter_app/features/score/domain/usecases/get_music_score.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _CountingDataSource implements ScoreLocalDataSource {
@@ -42,12 +44,36 @@ void main() {
   });
 
   // A interpretação roda em outro isolate: o erro de formato chega igual
-  // (GetMusicScore.firstAvailable depende do tipo FormatException).
+  // (GetMusicScore.firstAvailable só passa para o próximo arquivo com
+  // ScoreNotFoundException).
   test('formato inválido continua sendo informado como FormatException', () async {
     final repository = ScoreRepositoryImpl(_TextDataSource('<score-partwise><part>'), MusicXmlParser());
 
     await expectLater(repository.getScore('quebrada.xml'), throwsA(isA<FormatException>()));
   });
+
+  // Falha inesperada do parser: informada com o nome do arquivo, e não
+  // escondida pelo "não encontrada" do próximo candidato (.xml, .mxl).
+  test('erro ao interpretar o arquivo existente não é escondido', () async {
+    final repository = ScoreRepositoryImpl(_TextDataSource('<score-partwise/>'), _CrashingParser());
+
+    await expectLater(
+      GetMusicScore(repository).firstAvailable(['nova.musicxml', 'nova.xml', 'nova.mxl']),
+      throwsA(isA<FormatException>().having((e) => e.message, 'message', contains('nova.musicxml'))),
+    );
+  });
+
+  test('arquivo ausente passa para o próximo candidato', () async {
+    final repository = ScoreRepositoryImpl(_CountingDataSource(), MusicXmlParser());
+
+    final score = await GetMusicScore(repository).firstAvailable(['alecrim.mxl', 'alecrim.musicxml']);
+    expect(score.measures, isNotEmpty);
+  });
+}
+
+class _CrashingParser extends MusicXmlParser {
+  @override
+  MusicalScore parse(String xmlText) => throw StateError('elemento inesperado');
 }
 
 class _TextDataSource implements ScoreLocalDataSource {

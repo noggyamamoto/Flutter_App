@@ -11,16 +11,15 @@ class GetMusicScore {
   }
 
   // Tenta cada arquivo na ordem (ex.: .musicxml, .xml, .mxl) e usa o
-  // primeiro que existir. Erros de formato não são ignorados: se o arquivo
-  // existe mas é inválido, o erro é informado.
+  // primeiro que existir. Só a falta do arquivo passa para o próximo: se o
+  // arquivo existe mas não pôde ser interpretado, o erro é informado (e não
+  // o "não encontrada" do último candidato).
   Future<MusicalScore> firstAvailable(List<String> fileNames) async {
     Object? lastError;
     for (final name in fileNames) {
       try {
         return await repository.getScore(name);
-      } on FormatException {
-        rethrow;
-      } catch (e) {
+      } on ScoreNotFoundException catch (e) {
         lastError = e;
       }
     }
