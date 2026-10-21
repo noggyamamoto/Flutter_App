@@ -34,10 +34,19 @@ class ScoreRepositoryImpl implements ScoreRepository {
 
   Future<MusicalScore> _load(String path) async {
     final text = await dataSource.getScoreFile(path);
-    // Interpretar o MusicXML leva dezenas de milissegundos: fora da thread da
-    // interface (a transição para a tela de execução não engasga). Na web
-    // não há isolates.
-    if (kIsWeb) return parser.parse(text);
-    return compute(parser.parse, text);
+    try {
+      // Interpretar o MusicXML leva dezenas de milissegundos: fora da thread
+      // da interface (a transição para a tela de execução não engasga). Na
+      // web não há isolates.
+      if (kIsWeb) return parser.parse(text);
+      return await compute(parser.parse, text);
+    } on FormatException {
+      rethrow;
+    } catch (e, stack) {
+      // Falha inesperada do parser (elemento não previsto no arquivo): o
+      // erro é informado com o nome do arquivo.
+      debugPrint('Erro ao interpretar $path: $e\n$stack');
+      throw FormatException('Não foi possível interpretar $path: $e');
+    }
   }
 }

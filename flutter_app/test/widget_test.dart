@@ -193,7 +193,7 @@ void main() {
   });
 
   testWidgets('execução mostra precisão e botão de parar', (tester) async {
-    final structure = _structure('alecrim.xml');
+    final structure = _structure('alecrim.musicxml');
     final first = structure.expectedNotes.first;
     await _pump(tester, const PerformancePage(song: _song), [
       connectionProvider.overrideWith(() => _FixedConnection(
@@ -222,7 +222,7 @@ void main() {
   testWidgets('frase abaixo de 50% mostra a tela de incentivo', (tester) async {
     final notifier = _FixedPerformance(PerformanceState(
       status: PerformanceStatus.phraseFailed,
-      structure: _structure('alecrim.xml'),
+      structure: _structure('alecrim.musicxml'),
       bpm: 100,
       lastPhrase: const PhraseResult(
         phraseIndex: 1,

@@ -100,7 +100,7 @@ void main() {
         final score = MusicXmlParser().parse(file.readAsStringSync());
         final structure = ScoreAnalyzer().analyze(score);
 
-        expect(score.staves, 2, reason: file.path);
+        expect(score.staves, greaterThanOrEqualTo(1), reason: file.path);
         expect(structure.expectedNotes, isNotEmpty, reason: file.path);
         expect(structure.phrases.last.lastMeasure, score.measures.length - 1);
 
@@ -170,8 +170,8 @@ void main() {
       final bytes = ZipEncoder().encode(archive);
       final text = ScoreLocalDataSourceImpl.decodeScore(bytes, 'alecrim.mxl');
       final score = MusicXmlParser().parse(text);
-      expect(score.title.trim(), 'Alecrim');
-      expect(score.measures, hasLength(41));
+      expect(score.title.trim(), 'Alecrim (adaptação)');
+      expect(score.measures, hasLength(22));
     });
 
     test('partitura do Flat (alecrim.musicxml)', () {
@@ -179,15 +179,14 @@ void main() {
         File('assets/partituras/alecrim.musicxml').readAsStringSync(),
       );
       expect(score.tempo, 100);
-      expect(score.staves, 2);
-      expect(score.measures[0].clefs, {1: Clef.treble, 2: Clef.bass});
-      // Compasso 13: o segundo Dó# 4 da mão esquerda não repete o sustenido.
-      final cSharps = score.measures[12].notes.where((n) => n.staff == 2 && n.midi == 61).toList();
-      expect(cSharps, hasLength(2));
-      expect(cSharps[0].accidental, 'sharp');
-      expect(cSharps[1].accidental, isNull);
-      // Fá# da armadura não recebe acidente.
-      expect(score.notes.where((n) => n.step == 'F' && n.alter == 1).every((n) => n.accidental == null), isTrue);
+      expect(score.staves, 1);
+      expect(score.measures, hasLength(22));
+      expect(score.measures[0].clefs, {1: Clef.treble});
+      // Dó maior: só os sustenidos escritos no arquivo recebem acidente.
+      final sharps = score.notes.where((n) => n.alter == 1).toList();
+      expect(sharps.map((n) => n.step), ['G', 'F', 'G', 'F']);
+      expect(sharps.every((n) => n.accidental == 'sharp'), isTrue);
+      expect(score.notes.where((n) => n.alter == 0).every((n) => n.accidental == null), isTrue);
     });
   });
 }

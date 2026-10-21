@@ -139,12 +139,12 @@ List<String> _clickMismatches(
 }
 
 const _song = Song(
-  id: 'sinfonia',
-  titulo: 'Sinfonia Coral',
+  id: 'ode_a_alegria',
+  titulo: 'Ode à alegria',
   compositor: 'Beethoven',
   nivelDificuldade: 'fácil',
   bpmPadrao: 240,
-  arquivoMidi: 'sinfonia_coral_melodia_16_compassos.mid',
+  arquivoMidi: 'ode_a_alegria.mid',
 );
 
 ProviderContainer _container(
